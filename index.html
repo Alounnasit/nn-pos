@@ -3207,6 +3207,10 @@
         liveNativeStreamInterval = null;
       }
 
+      const readerEl = document.getElementById('wireless-camera-reader');
+      if (readerEl) readerEl.innerHTML = '';
+      await new Promise(r => setTimeout(r, 100));
+
       try {
         mobileHtml5QrCode = new Html5Qrcode("wireless-camera-reader", {
           formatsToSupport: [
@@ -3218,36 +3222,78 @@
             Html5QrcodeSupportedFormats.CODE_39,
             Html5QrcodeSupportedFormats.QR_CODE
           ],
-          verbose: false,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          }
+          verbose: false
         });
 
         const qrConfig = {
-          fps: 25,
-          qrbox: (viewfinderWidth, viewfinderHeight) => {
-            const w = Math.min(Math.floor(viewfinderWidth * 0.94), 500);
-            const h = Math.min(Math.floor(viewfinderHeight * 0.70), 320);
-            return { width: w, height: h };
-          },
-          aspectRatio: 1.0
+          fps: 20,
+          qrbox: { width: 280, height: 200 }
         };
 
-        await mobileHtml5QrCode.start(
-          {
-            facingMode: mobileCurrentFacingMode,
-            focusMode: "continuous"
-          },
-          qrConfig,
-          onMobileWirelessBarcodeScanned,
-          () => {}
-        );
+        let started = false;
+
+        // Attempt 1: Query camera devices (best on iOS Safari & Chrome to pick rear camera ID)
+        try {
+          const cams = await Html5Qrcode.getCameras();
+          if (cams && cams.length > 0) {
+            let selectedCam;
+            if (mobileCurrentFacingMode === 'user') {
+              selectedCam = cams.find(d => {
+                const lbl = (d.label || '').toLowerCase();
+                return lbl.includes('front') || lbl.includes('user') || lbl.includes('facetime');
+              }) || cams[0];
+            } else {
+              selectedCam = cams.find(d => {
+                const lbl = (d.label || '').toLowerCase();
+                return lbl.includes('back') || lbl.includes('rear') || lbl.includes('environment');
+              }) || cams[cams.length - 1];
+            }
+
+            if (selectedCam && selectedCam.id) {
+              await mobileHtml5QrCode.start(
+                selectedCam.id,
+                qrConfig,
+                onMobileWirelessBarcodeScanned,
+                () => {}
+              );
+              started = true;
+            }
+          }
+        } catch (camErr) {
+          console.warn("Could not start camera by ID, trying facingMode:", camErr);
+        }
+
+        // Attempt 2: Start with facingMode object (clean standard constraints without focusMode)
+        if (!started) {
+          try {
+            await mobileHtml5QrCode.start(
+              { facingMode: mobileCurrentFacingMode },
+              qrConfig,
+              onMobileWirelessBarcodeScanned,
+              () => {}
+            );
+            started = true;
+          } catch (facingErr) {
+            console.warn("Could not start camera with facingMode:", facingErr);
+          }
+        }
+
+        // Attempt 3: Fallback facingMode
+        if (!started) {
+          const fallbackFacing = (mobileCurrentFacingMode === 'environment') ? 'user' : 'environment';
+          await mobileHtml5QrCode.start(
+            { facingMode: fallbackFacing },
+            qrConfig,
+            onMobileWirelessBarcodeScanned,
+            () => {}
+          );
+          started = true;
+        }
 
         checkWirelessTorchSupport();
 
-        // Attach live native BarcodeDetector hardware loop on the video element for instant decoding
-        setTimeout(attachLiveStreamDetector, 300);
+        // Safely hook live native BarcodeDetector hardware loop if supported by browser
+        setTimeout(attachLiveStreamDetector, 400);
 
       } catch (err) {
         console.warn('Could not start live video stream on mobile:', err);
@@ -3256,26 +3302,33 @@
     }
 
     async function attachLiveStreamDetector() {
-      if (liveNativeStreamInterval) clearInterval(liveNativeStreamInterval);
+      if (liveNativeStreamInterval) {
+        clearInterval(liveNativeStreamInterval);
+        liveNativeStreamInterval = null;
+      }
 
       const videoEl = document.querySelector('#wireless-camera-reader video');
       if (!videoEl) {
-        setTimeout(attachLiveStreamDetector, 200);
+        setTimeout(attachLiveStreamDetector, 300);
         return;
       }
 
       let detector = null;
-      if ('BarcodeDetector' in window) {
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
         try {
           const supported = await BarcodeDetector.getSupportedFormats();
           const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code'];
           const formats = desired.filter(f => supported.includes(f));
-          detector = new BarcodeDetector({ formats });
-          console.log('⚡ Hardware-accelerated BarcodeDetector hooked to live video stream!');
+          if (formats.length > 0) {
+            detector = new BarcodeDetector({ formats });
+            console.log('⚡ Hardware-accelerated BarcodeDetector hooked to live video stream!');
+          }
         } catch (e) {
           console.warn('Live BarcodeDetector init error:', e);
         }
       }
+
+      if (!detector) return;
 
       const offCanvas = document.createElement('canvas');
       const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
@@ -3287,19 +3340,17 @@
 
         try {
           // 1. Direct hardware ML scan on live video frame (Apple Vision on iOS / ML Kit on Android)
-          if (detector) {
-            const results = await detector.detect(videoEl);
-            if (results && results.length > 0 && results[0].rawValue) {
-              onMobileWirelessBarcodeScanned(results[0].rawValue);
-              isDetecting = false;
-              return;
-            }
+          const results = await detector.detect(videoEl);
+          if (results && results.length > 0 && results[0].rawValue) {
+            onMobileWirelessBarcodeScanned(results[0].rawValue);
+            isDetecting = false;
+            return;
           }
 
           // 2. High-contrast frame analysis for curved/glossy surfaces
           const vw = videoEl.videoWidth || 640;
           const vh = videoEl.videoHeight || 480;
-          if (vw > 0 && vh > 0 && detector) {
+          if (vw > 0 && vh > 0) {
             const cw = Math.floor(vw * 0.85);
             const ch = Math.floor(vh * 0.65);
             const cx = Math.floor((vw - cw) / 2);
