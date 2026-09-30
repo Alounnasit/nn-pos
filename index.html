@@ -48,6 +48,9 @@
   <!-- html5-qrcode for Mobile Camera Barcode Scanner -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
+  <!-- PeerJS for Real-time Mobile-to-PC Wireless Scanner Communication -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
   <style>
     body {
       font-family: 'Noto Sans Lao', 'Inter', sans-serif;
@@ -161,6 +164,13 @@
 
     <!-- Quick Action Buttons -->
     <div class="flex items-center space-x-1.5">
+      <!-- Wireless Mobile Scanner Pairing Button -->
+      <button onclick="openPairScannerModal()" id="btn-pair-scanner" class="px-2.5 py-1.5 text-xs font-semibold bg-gradient-to-r from-indigo-600/30 to-purple-600/30 hover:from-indigo-600/50 hover:to-purple-600/50 text-indigo-300 rounded-lg border border-indigo-500/40 transition flex items-center gap-1.5 shadow-sm active:scale-95" title="ເຊື່ອມຕໍ່ມືຖືເປັນກ້ອງຍິງບາໂຄ້ດໄຮ້ສາຍ">
+        <i class="fa-solid fa-mobile-screen-button text-indigo-400"></i>
+        <span class="hidden sm:inline">ມືຖືຍິງບາໂຄ້ດ</span>
+        <span id="pair-status-dot" class="w-2 h-2 rounded-full bg-slate-500" title="ສະຖານະການເຊື່ອມຕໍ່"></span>
+      </button>
+
       <button onclick="openRestockModal()" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow-sm" title="ຮັບສິນຄ້າເຂົ້າສາງ">
         <i class="fa-solid fa-boxes-stacked text-amber-400"></i>
         <span class="hidden lg:inline">ຮັບສິນຄ້າ (Restock)</span>
@@ -532,6 +542,156 @@
     </div>
   </div>
 
+  <!-- ================= PAIR MOBILE SCANNER MODAL (ON PC) ================= -->
+  <div id="pair-scanner-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 fade-in">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-sm overflow-hidden flex flex-col shadow-2xl">
+      <!-- Header -->
+      <div class="px-5 py-4 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between text-white">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-mobile-screen-button"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm">ເຊື່ອມຕໍ່ມືຖືເປັນເຄື່ອງຍິງບາໂຄ້ດ</h3>
+            <p class="text-[10px] text-slate-400">Wireless Mobile Barcode Scanner</p>
+          </div>
+        </div>
+        <button onclick="closePairScannerModal()" class="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="p-6 flex flex-col items-center text-center space-y-4">
+        <!-- QR Code Container -->
+        <div class="p-3 bg-white rounded-2xl shadow-xl border-4 border-indigo-500/30 relative">
+          <img id="pair-qr-img" class="w-48 h-48 block mx-auto rounded-lg" alt="Pairing QR Code">
+          <div id="pair-qr-loading" class="absolute inset-0 bg-white flex flex-col items-center justify-center text-slate-500 text-xs gap-2">
+            <i class="fa-solid fa-spinner fa-spin text-2xl text-indigo-500"></i>
+            <span>ກຳລັງສ້າງ QR Code...</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-mono font-bold mb-1">
+            <span>ລະຫັດເຊື່ອມຕໍ່:</span>
+            <span id="pair-code-text" class="text-sm text-indigo-200 tracking-wider font-bold">----</span>
+          </div>
+          <p class="text-xs text-slate-300 font-medium">
+            1. ຍົກມືຖືຂຶ້ນມາສະແກນ QR Code ນີ້
+          </p>
+          <p class="text-[11px] text-slate-400 mt-0.5">
+            2. ມືຖືຈະປ່ຽນເປັນເຄື່ອງຍິງບາໂຄ້ດ ສົ່ງຂໍ້ມູນເຂົ້າ PC ອັດຕະໂນມັດທັນທີ!
+          </p>
+        </div>
+
+        <!-- Live Connection Status Box -->
+        <div id="pair-live-status-box" class="w-full py-2.5 px-3 rounded-xl bg-slate-800/80 border border-slate-700 text-xs flex items-center justify-center gap-2">
+          <span id="pair-live-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="pair-live-text" class="text-slate-300 font-medium">ລໍຖ້າມືຖືສະແກນ QR Code...</span>
+        </div>
+
+        <!-- Copy Link button -->
+        <button onclick="copyPairLink()" class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-semibold rounded-xl text-xs transition border border-slate-700 flex items-center justify-center gap-2">
+          <i class="fa-regular fa-copy"></i>
+          <span>ກັອບປີ້ລິ້ງສຳລັບເປີດໃນມືຖື</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DEDICATED WIRELESS MOBILE SCANNER VIEW (ON MOBILE) ================= -->
+  <div id="wireless-scanner-view" class="fixed inset-0 z-50 bg-slate-950 flex flex-col hidden select-none">
+    <!-- Top Header -->
+    <div class="px-4 py-3 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" id="scanner-conn-dot"></span>
+        <span id="scanner-conn-label" class="text-xs font-bold text-amber-300 font-mono">ກຳລັງເຊື່ອມຕໍ່ PC...</span>
+      </div>
+      <!-- Mode Toggle: POS Cart vs Restock -->
+      <div class="flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700 text-xs">
+        <button id="target-mode-pos" onclick="setScannerTargetMode('POS')" class="px-2.5 py-1 rounded-lg font-bold bg-indigo-600 text-white transition text-xs">
+          🛒 ຂາຍ POS
+        </button>
+        <button id="target-mode-restock" onclick="setScannerTargetMode('RESTOCK')" class="px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition text-xs">
+          📦 ຮັບສິນຄ້າ
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Camera Viewport -->
+    <div class="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+      <div id="wireless-camera-reader" class="w-full h-full"></div>
+
+      <!-- Laser Viewfinder Reticle -->
+      <div class="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+        <div class="relative w-72 h-52 border-2 border-dashed border-emerald-400/60 rounded-3xl flex items-center justify-center shadow-2xl">
+          <div class="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl"></div>
+          <div class="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl"></div>
+          <div class="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl"></div>
+          <div class="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-400 rounded-br-xl"></div>
+          <div class="scanner-laser"></div>
+        </div>
+      </div>
+
+      <!-- Flash feedback on scan -->
+      <div id="wireless-scan-flash" class="absolute inset-0 bg-white/40 pointer-events-none transition-opacity duration-200 opacity-0"></div>
+
+      <!-- Quick Floating Controls (Torch, Flip) -->
+      <div class="absolute top-4 right-4 flex flex-col gap-2 z-20">
+        <button id="wireless-torch-btn" onclick="toggleWirelessTorch()" class="w-10 h-10 rounded-full bg-slate-800/80 backdrop-blur text-white flex items-center justify-center shadow-lg border border-slate-700 text-sm active:scale-95 transition">
+          <i class="fa-regular fa-lightbulb"></i>
+        </button>
+        <button id="wireless-flip-btn" onclick="flipWirelessCamera()" class="w-10 h-10 rounded-full bg-slate-800/80 backdrop-blur text-white flex items-center justify-center shadow-lg border border-slate-700 text-sm active:scale-95 transition">
+          <i class="fa-solid fa-camera-rotate"></i>
+        </button>
+      </div>
+
+      <!-- Camera Start Error / Help Message -->
+      <div id="wireless-cam-error" class="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center text-white hidden z-30 space-y-3">
+        <i class="fa-solid fa-camera text-3xl text-amber-400"></i>
+        <h4 class="font-bold text-sm">ບໍ່ສາມາດເປີດກ້ອງວິດີໂອໄດ້</h4>
+        <p class="text-xs text-slate-400 max-w-xs leading-relaxed">
+          ກະລຸນາກວດສອບສິດ Camera Permission ຫຼື ໃຊ້ປຸ່ມຖ່າຍຮູບດ້ານລຸ່ມນີ້
+        </p>
+        <button onclick="triggerWirelessNativeSnap()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg">
+          <i class="fa-solid fa-camera"></i>
+          <span>📸 ຖ່າຍຮູບສະແກນສົ່ງໄປ PC</span>
+        </button>
+      </div>
+      <input type="file" id="wireless-file-input" accept="image/*" capture="environment" class="hidden" onchange="handleWirelessFileSelected(this)">
+    </div>
+
+    <!-- Bottom Status & Log Drawer -->
+    <div class="p-4 bg-slate-900 border-t border-slate-800 shrink-0 space-y-3">
+      <!-- Last Scanned Banner -->
+      <div id="wireless-last-scanned-box" class="p-3 bg-slate-800/90 rounded-2xl border border-slate-700 flex items-center justify-between">
+        <div class="truncate mr-2">
+          <span class="text-[10px] text-slate-400 block">ລາຍການຫຼ້າສຸດທີ່ຍິງໄປ PC:</span>
+          <span id="wireless-last-scanned-code" class="text-sm font-mono font-bold text-emerald-400">ພ້ອມຍິງບາໂຄ້ດ...</span>
+        </div>
+        <div class="shrink-0 text-right">
+          <span id="wireless-scan-count-badge" class="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-mono font-bold">0 ລາຍການ</span>
+        </div>
+      </div>
+
+      <!-- Manual Barcode Keypad Option & Switch back to POS -->
+      <div class="flex items-center gap-2">
+        <button onclick="promptManualBarcodeSend()" class="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-semibold rounded-xl text-xs transition border border-slate-700 flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-keyboard text-indigo-400"></i>
+          <span>ພິມລະຫັດສົ່ງໄປ PC</span>
+        </button>
+        <button onclick="triggerWirelessNativeSnap()" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-semibold rounded-xl text-xs transition border border-slate-700 flex items-center justify-center gap-1.5" title="ຖ່າຍຮູບສະແກນ">
+          <i class="fa-solid fa-camera text-emerald-400"></i>
+          <span>ຖ່າຍຮູບ</span>
+        </button>
+        <button onclick="exitWirelessScannerView()" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-400 font-semibold rounded-xl text-xs transition border border-slate-700">
+          ອອກ
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= MOBILE CAMERA SCANNER MODAL ================= -->
   <div id="camera-scanner-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden flex flex-col items-center justify-center p-3 sm:p-4 fade-in">
     <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl relative">
@@ -809,6 +969,7 @@
       startLiveClock();
       setupKeyboardShortcuts();
       initCatalogData();
+      checkMobileScannerModeOnLoad();
     });
 
     function startLiveClock() {
@@ -2400,6 +2561,614 @@
      */
     function formatMoney(amount) {
       return Number(amount || 0).toLocaleString('en-US') + ' ₭';
+    }
+
+    /**
+     * =========================================================================
+     * WIRELESS PHONE-TO-PC BARCODE SCANNER CONTROLLER (WebRTC P2P DataChannel)
+     * =========================================================================
+     */
+
+    // --- Floating Notification for Remote Mobile Events on PC ---
+    function showRemoteScanToast(msg, isError = false) {
+      let toast = document.getElementById('remote-scan-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'remote-scan-toast';
+        document.body.appendChild(toast);
+      }
+      toast.className = `fixed top-14 right-4 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-semibold backdrop-blur-md transition-all duration-300 pointer-events-none transform translate-y-0 opacity-100 ${
+        isError ? 'bg-rose-900/95 text-rose-200 border border-rose-700/60 shadow-rose-900/50' : 'bg-slate-900/95 text-emerald-300 border border-emerald-500/50 shadow-emerald-950/50'
+      }`;
+      toast.innerHTML = `<i class="${isError ? 'fa-solid fa-triangle-exclamation text-rose-400' : 'fa-solid fa-mobile-screen-button text-emerald-400'} text-sm"></i><span>${msg}</span>`;
+
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.className = 'fixed top-14 right-4 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-semibold backdrop-blur-md transition-all duration-300 pointer-events-none transform translate-y-[-20px] opacity-0';
+      }, 2500);
+    }
+
+    // --- PC Side Pairing State & Functions ---
+    let pcPeer = null;
+    let pcPairCode = null;
+    let pcActiveConn = null;
+
+    function getOrGeneratePairCode() {
+      let code = sessionStorage.getItem('nnpos_pc_pair_code');
+      if (!code) {
+        code = Math.floor(1000 + Math.random() * 9000).toString();
+        sessionStorage.setItem('nnpos_pc_pair_code', code);
+      }
+      return code;
+    }
+
+    function initPCPairing() {
+      if (pcPeer && !pcPeer.destroyed) return;
+      pcPairCode = getOrGeneratePairCode();
+      const peerId = 'nnpos-' + pcPairCode;
+
+      try {
+        if (typeof Peer === 'undefined') {
+          setTimeout(initPCPairing, 500);
+          return;
+        }
+
+        pcPeer = new Peer(peerId, {
+          debug: 1,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
+          }
+        });
+
+        pcPeer.on('open', (id) => {
+          console.log('PC Peer online with ID:', id);
+          const codeEl = document.getElementById('pair-code-text');
+          if (codeEl) codeEl.innerText = pcPairCode;
+          const liveText = document.getElementById('pair-live-text');
+          if (liveText && !pcActiveConn) {
+            liveText.innerText = `ລໍຖ້າມືຖືສະແກນ QR Code... (ລະຫັດ: ${pcPairCode})`;
+          }
+        });
+
+        pcPeer.on('connection', (conn) => {
+          pcActiveConn = conn;
+          conn.on('open', () => {
+            console.log('Mobile connected to PC via DataChannel!');
+            playBeep('success');
+            updatePCPairStatus(true);
+            showRemoteScanToast('📱 ມືຖືເຊື່ອມຕໍ່ສຳເລັດແລ້ວ! (ພ້ອມຍິງບາໂຄ້ດ)');
+          });
+
+          conn.on('data', (data) => {
+            console.log('Received data from mobile:', data);
+            if (data && data.type === 'barcode') {
+              handleRemoteBarcodeFromMobile(data.barcode, data.targetMode);
+            }
+          });
+
+          conn.on('close', () => {
+            console.log('Mobile disconnected from PC');
+            pcActiveConn = null;
+            updatePCPairStatus(false);
+            showRemoteScanToast('⚠️ ມືຖືຕັດການເຊື່ອມຕໍ່', true);
+          });
+
+          conn.on('error', (err) => {
+            console.warn('PC connection error:', err);
+          });
+        });
+
+        pcPeer.on('error', (err) => {
+          console.warn('PC PeerJS error:', err);
+          if (err && err.type === 'unavailable-id') {
+            sessionStorage.removeItem('nnpos_pc_pair_code');
+            pcPairCode = Math.floor(1000 + Math.random() * 9000).toString();
+            sessionStorage.setItem('nnpos_pc_pair_code', pcPairCode);
+            setTimeout(initPCPairing, 500);
+          }
+        });
+      } catch (e) {
+        console.error('Failed to init PC pairing:', e);
+      }
+    }
+
+    function updatePCPairStatus(isConnected) {
+      const liveDot = document.getElementById('pair-live-dot');
+      const liveText = document.getElementById('pair-live-text');
+      const statusDot = document.getElementById('pair-status-dot');
+      const pairBtn = document.getElementById('btn-pair-scanner');
+
+      if (isConnected) {
+        if (liveDot) {
+          liveDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+        }
+        if (liveText) {
+          liveText.innerHTML = '<span class="text-emerald-400 font-bold">🟢 ເຊື່ອມຕໍ່ກັບມືຖືແລ້ວ! ພ້ອມຮັບບາໂຄ້ດ</span>';
+        }
+        if (statusDot) {
+          statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse';
+        }
+        if (pairBtn) {
+          pairBtn.classList.add('border-emerald-500/70', 'text-emerald-300');
+          pairBtn.classList.remove('border-indigo-500/40', 'text-indigo-300');
+        }
+      } else {
+        if (liveDot) {
+          liveDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+        }
+        if (liveText) {
+          liveText.innerText = `ລໍຖ້າມືຖືສະແກນ QR Code... (ລະຫັດ: ${pcPairCode || '----'})`;
+        }
+        if (statusDot) {
+          statusDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+        }
+        if (pairBtn) {
+          pairBtn.classList.remove('border-emerald-500/70', 'text-emerald-300');
+          pairBtn.classList.add('border-indigo-500/40', 'text-indigo-300');
+        }
+      }
+    }
+
+    function openPairScannerModal() {
+      initPCPairing();
+      const modal = document.getElementById('pair-scanner-modal');
+      const codeEl = document.getElementById('pair-code-text');
+      const qrImg = document.getElementById('pair-qr-img');
+      const qrLoading = document.getElementById('pair-qr-loading');
+
+      modal.classList.remove('hidden');
+      if (codeEl) codeEl.innerText = pcPairCode;
+
+      // Construct pairing URL
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('scanner', pcPairCode);
+      const pairUrl = currentUrl.toString();
+
+      if (qrLoading) qrLoading.classList.remove('hidden');
+
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(pairUrl)}`;
+      qrImg.onload = () => {
+        if (qrLoading) qrLoading.classList.add('hidden');
+      };
+      qrImg.onerror = () => {
+        if (qrLoading) {
+          qrLoading.innerHTML = `<span class="text-rose-500 text-xs">ໂຫຼດ QR Code ບໍ່ສຳເລັດ<br>ກະລຸນາກັອບປີ້ລິ້ງແທນ</span>`;
+        }
+      };
+      qrImg.src = qrApiUrl;
+    }
+
+    function closePairScannerModal() {
+      document.getElementById('pair-scanner-modal').classList.add('hidden');
+    }
+
+    function copyPairLink() {
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('scanner', pcPairCode || getOrGeneratePairCode());
+      const pairUrl = currentUrl.toString();
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(pairUrl).then(() => {
+          Swal.fire({
+            icon: 'success',
+            title: 'ກັອບປີ້ລິ້ງສຳເລັດ!',
+            text: 'ສົ່ງລິ້ງນີ້ໄປເປີດໃນ Browser ຂອງມືຖື ເພື່ອໃຊ້ເປັນເຄື່ອງຍິງບາໂຄ້ດ',
+            timer: 2500,
+            showConfirmButton: false
+          });
+        }).catch(() => fallbackPromptCopy(pairUrl));
+      } else {
+        fallbackPromptCopy(pairUrl);
+      }
+    }
+
+    function fallbackPromptCopy(text) {
+      prompt('ກັອບປີ້ລິ້ງສຳລັບເປີດໃນມືຖື:', text);
+    }
+
+    function handleRemoteBarcodeFromMobile(rawCode, targetMode = 'POS') {
+      if (!rawCode) return;
+      rawCode = String(rawCode).trim();
+
+      // 1. RESTOCK Mode from Mobile
+      if (targetMode === 'RESTOCK') {
+        openRestockModal();
+        let prod = null;
+        const unit = state.barcodeMap[rawCode];
+        if (unit) {
+          prod = state.products.find(p => p.product_id === unit.product_id);
+        } else {
+          prod = state.products.find(p => p.product_id === rawCode || p.barcode === rawCode);
+        }
+
+        if (prod) {
+          const select = document.getElementById('restock-product-id');
+          if (select) select.value = prod.product_id;
+          const qtyInput = document.getElementById('restock-qty');
+          if (qtyInput) {
+            qtyInput.focus();
+            qtyInput.select();
+          }
+          playBeep('success');
+          showRemoteScanToast(`📦 ຮັບສິນຄ້າ: ${prod.name_lo}`);
+          if (pcActiveConn && pcActiveConn.open) {
+            pcActiveConn.send({ type: 'feedback', success: true, message: `ຮັບເຂົ້າ: ${prod.name_lo}` });
+          }
+        } else {
+          playBeep('error');
+          showRemoteScanToast(`⚠️ ບໍ່ພົບສິນຄ້າລະຫັດ: ${rawCode}`, true);
+          if (pcActiveConn && pcActiveConn.open) {
+            pcActiveConn.send({ type: 'feedback', success: false, message: `ບໍ່ພົບລະຫັດ: ${rawCode}` });
+          }
+        }
+        return;
+      }
+
+      // 2. POS Sale Mode from Mobile
+      const res = processBarcode(rawCode, true);
+      if (res.success) {
+        playBeep('success');
+        showRemoteScanToast(`🛒 ຍິງຈາກມືຖື: ${res.itemName}`);
+        if (pcActiveConn && pcActiveConn.open) {
+          pcActiveConn.send({ type: 'feedback', success: true, message: `ຂາຍ: ${res.itemName}` });
+        }
+      } else {
+        playBeep('error');
+        const input = document.getElementById('barcode-input');
+        if (input) {
+          input.value = rawCode;
+          input.focus();
+        }
+        showRemoteScanToast(`⚠️ ບໍ່ພົບລະຫັດ: ${rawCode}`, true);
+        if (pcActiveConn && pcActiveConn.open) {
+          pcActiveConn.send({ type: 'feedback', success: false, message: `ບໍ່ພົບລະຫັດ: ${rawCode}` });
+        }
+      }
+    }
+
+    // --- Mobile Wireless Scanner Gun Controller ---
+    let mobilePeer = null;
+    let mobileConn = null;
+    let mobilePairCode = null;
+    let mobileHtml5QrCode = null;
+    let currentScannerTargetMode = 'POS';
+    let mobileScannedCount = 0;
+    let lastScannedBarcode = '';
+    let lastScannedTimestamp = 0;
+    let isMobileTorchOn = false;
+    let mobileCurrentFacingMode = 'environment';
+
+    function checkMobileScannerModeOnLoad() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const scannerParam = urlParams.get('scanner');
+      if (scannerParam) {
+        mobilePairCode = scannerParam.trim();
+        initMobileWirelessScanner(mobilePairCode);
+      } else {
+        // Run PC listener in background on PC devices
+        setTimeout(initPCPairing, 600);
+      }
+    }
+
+    async function initMobileWirelessScanner(pairCode) {
+      console.log('Starting Mobile Wireless Barcode Scanner Gun Mode, pairing code:', pairCode);
+      const view = document.getElementById('wireless-scanner-view');
+      view.classList.remove('hidden');
+
+      const label = document.getElementById('scanner-conn-label');
+      const dot = document.getElementById('scanner-conn-dot');
+      if (label) label.innerText = `ກຳລັງເຊື່ອມຕໍ່ PC (${pairCode})...`;
+      if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+
+      // Connect to PC via WebRTC
+      connectMobileToPC(pairCode);
+
+      // Start Camera
+      startWirelessCameraScanner();
+    }
+
+    function connectMobileToPC(pairCode) {
+      try {
+        if (typeof Peer === 'undefined') {
+          setTimeout(() => connectMobileToPC(pairCode), 500);
+          return;
+        }
+
+        if (mobilePeer && !mobilePeer.destroyed) {
+          try { mobilePeer.destroy(); } catch(e) {}
+        }
+
+        mobilePeer = new Peer({
+          debug: 1,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
+          }
+        });
+
+        mobilePeer.on('open', (id) => {
+          console.log('Mobile peer ready:', id, 'connecting to PC: nnpos-' + pairCode);
+          mobileConn = mobilePeer.connect('nnpos-' + pairCode, { reliable: true });
+
+          mobileConn.on('open', () => {
+            console.log('Connected to PC POS successfully!');
+            const label = document.getElementById('scanner-conn-label');
+            const dot = document.getElementById('scanner-conn-dot');
+            if (label) label.innerHTML = `<span class="text-emerald-400 font-bold">🟢 ເຊື່ອມຕໍ່ PC ແລ້ວ (${pairCode})</span>`;
+            if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            playBeep('success');
+          });
+
+          mobileConn.on('data', (data) => {
+            if (data && data.type === 'feedback') {
+              const codeEl = document.getElementById('wireless-last-scanned-code');
+              if (codeEl) {
+                if (data.success) {
+                  codeEl.innerHTML = `<span class="text-emerald-400 font-bold">✅ ${data.message}</span>`;
+                } else {
+                  codeEl.innerHTML = `<span class="text-rose-400 font-bold">⚠️ ${data.message}</span>`;
+                  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                }
+              }
+            }
+          });
+
+          mobileConn.on('close', () => {
+            console.log('Connection closed, trying to reconnect in 2s...');
+            const label = document.getElementById('scanner-conn-label');
+            const dot = document.getElementById('scanner-conn-dot');
+            if (label) label.innerText = `ສັນຍານຂາດ, ກຳລັງເຊື່ອມຕໍ່ໃໝ່...`;
+            if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
+            setTimeout(() => connectMobileToPC(pairCode), 2000);
+          });
+
+          mobileConn.on('error', (err) => {
+            console.warn('Mobile connection error:', err);
+          });
+        });
+
+        mobilePeer.on('error', (err) => {
+          console.warn('Mobile PeerJS error:', err);
+          setTimeout(() => connectMobileToPC(pairCode), 3000);
+        });
+      } catch (e) {
+        console.error('Error starting mobile peer:', e);
+      }
+    }
+
+    async function startWirelessCameraScanner() {
+      const errBox = document.getElementById('wireless-cam-error');
+      if (errBox) errBox.classList.add('hidden');
+
+      if (typeof Html5Qrcode === 'undefined') {
+        setTimeout(startWirelessCameraScanner, 300);
+        return;
+      }
+
+      if (mobileHtml5QrCode) {
+        try {
+          if (mobileHtml5QrCode.isScanning) await mobileHtml5QrCode.stop();
+          await mobileHtml5QrCode.clear();
+        } catch(e) {}
+      }
+
+      try {
+        mobileHtml5QrCode = new Html5Qrcode("wireless-camera-reader", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ],
+          verbose: false
+        });
+
+        const qrConfig = {
+          fps: 20,
+          qrbox: { width: 280, height: 180 }
+        };
+
+        await mobileHtml5QrCode.start(
+          { facingMode: mobileCurrentFacingMode },
+          qrConfig,
+          onMobileWirelessBarcodeScanned,
+          () => {}
+        );
+
+        checkWirelessTorchSupport();
+      } catch (err) {
+        console.warn('Could not start live video stream on mobile:', err);
+        if (errBox) errBox.classList.remove('hidden');
+      }
+    }
+
+    function onMobileWirelessBarcodeScanned(rawCode) {
+      if (!rawCode) return;
+      rawCode = String(rawCode).trim();
+
+      const now = Date.now();
+      if (rawCode === lastScannedBarcode && (now - lastScannedTimestamp) < 1200) {
+        return;
+      }
+      lastScannedBarcode = rawCode;
+      lastScannedTimestamp = now;
+
+      // Laser & Screen Flash feedback
+      const flash = document.getElementById('wireless-scan-flash');
+      if (flash) {
+        flash.classList.remove('opacity-0');
+        flash.classList.add('opacity-80');
+        setTimeout(() => {
+          flash.classList.remove('opacity-80');
+          flash.classList.add('opacity-0');
+        }, 120);
+      }
+
+      if (navigator.vibrate) navigator.vibrate(70);
+      playBeep('success');
+
+      if (mobileConn && mobileConn.open) {
+        mobileConn.send({
+          type: 'barcode',
+          barcode: rawCode,
+          targetMode: currentScannerTargetMode
+        });
+        mobileScannedCount++;
+        const badge = document.getElementById('wireless-scan-count-badge');
+        if (badge) badge.innerText = `${mobileScannedCount} ລາຍການ`;
+        const codeEl = document.getElementById('wireless-last-scanned-code');
+        if (codeEl) codeEl.innerText = `${rawCode} (ຍິງສົ່ງແລ້ວ...)`;
+      } else {
+        const codeEl = document.getElementById('wireless-last-scanned-code');
+        if (codeEl) codeEl.innerHTML = `<span class="text-amber-400 font-bold">${rawCode} (PC ຍັງບໍ່ເຊື່ອມຕໍ່)</span>`;
+        playBeep('error');
+      }
+    }
+
+    function setScannerTargetMode(mode) {
+      currentScannerTargetMode = mode;
+      const posBtn = document.getElementById('target-mode-pos');
+      const restockBtn = document.getElementById('target-mode-restock');
+
+      if (mode === 'POS') {
+        posBtn.className = 'px-2.5 py-1 rounded-lg font-bold bg-indigo-600 text-white transition text-xs';
+        restockBtn.className = 'px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition text-xs';
+      } else {
+        restockBtn.className = 'px-2.5 py-1 rounded-lg font-bold bg-amber-600 text-white transition text-xs';
+        posBtn.className = 'px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-white transition text-xs';
+      }
+    }
+
+    function promptManualBarcodeSend() {
+      Swal.fire({
+        title: 'ພິມລະຫັດບາໂຄ້ດສົ່ງໄປ PC',
+        input: 'text',
+        inputPlaceholder: 'ປ້ອນບາໂຄ້ດ ຫຼື PLU...',
+        inputAttributes: {
+          autocapitalize: 'off',
+          autocorrect: 'off',
+          inputmode: 'numeric'
+        },
+        showCancelButton: true,
+        confirmButtonText: 'ຍິງສົ່ງໄປ PC',
+        cancelButtonText: 'ຍົກເລີກ',
+        confirmButtonColor: '#4f46e5',
+        preConfirm: (val) => {
+          if (!val) {
+            Swal.showValidationMessage('ກະລຸນາປ້ອນລະຫັດບາໂຄ້ດ');
+          }
+          return val;
+        }
+      }).then((result) => {
+        if (result.isConfirmed && result.value) {
+          onMobileWirelessBarcodeScanned(result.value);
+        }
+      });
+    }
+
+    function triggerWirelessNativeSnap() {
+      const input = document.getElementById('wireless-file-input');
+      if (input) input.click();
+    }
+
+    async function handleWirelessFileSelected(input) {
+      if (!input.files || input.files.length === 0) return;
+      const file = input.files[0];
+
+      Swal.fire({
+        title: 'ກຳລັງອ່ານບາໂຄ້ດ...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      try {
+        const decodedText = await decodeBarcodeFromImageFile(file);
+        Swal.close();
+        if (decodedText) {
+          onMobileWirelessBarcodeScanned(decodedText);
+        } else {
+          Swal.fire({
+            icon: 'warning',
+            title: 'ອ່ານບາໂຄ້ດບໍ່ສຳເລັດ',
+            text: 'ກະລຸນາຖ່າຍໃຫ້ເຫັນເສັ້ນບາໂຄ້ດຊັດເຈນ ຫຼື ໃຊ້ປຸ່ມພິມລະຫັດແທນ',
+            timer: 2500,
+            showConfirmButton: false
+          });
+        }
+      } catch (err) {
+        Swal.close();
+        console.error('Mobile photo barcode decode error:', err);
+      } finally {
+        input.value = '';
+      }
+    }
+
+    function toggleWirelessTorch() {
+      if (!mobileHtml5QrCode) return;
+      try {
+        const track = mobileHtml5QrCode.getRunningTrackCameraCapabilities();
+        if (track && track.torchFeature().isSupported()) {
+          isMobileTorchOn = !isMobileTorchOn;
+          track.torchFeature().apply(isMobileTorchOn);
+          const btn = document.getElementById('wireless-torch-btn');
+          if (btn) {
+            btn.className = isMobileTorchOn 
+              ? 'w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-lg border border-amber-400 text-sm active:scale-95 transition'
+              : 'w-10 h-10 rounded-full bg-slate-800/80 backdrop-blur text-white flex items-center justify-center shadow-lg border border-slate-700 text-sm active:scale-95 transition';
+          }
+        }
+      } catch (e) {
+        console.warn('Torch toggle error:', e);
+      }
+    }
+
+    function checkWirelessTorchSupport() {
+      const btn = document.getElementById('wireless-torch-btn');
+      try {
+        const track = mobileHtml5QrCode.getRunningTrackCameraCapabilities();
+        if (track && track.torchFeature().isSupported()) {
+          btn.classList.remove('hidden');
+        } else {
+          btn.classList.add('hidden');
+        }
+      } catch (e) {
+        btn.classList.add('hidden');
+      }
+    }
+
+    async function flipWirelessCamera() {
+      mobileCurrentFacingMode = (mobileCurrentFacingMode === 'environment') ? 'user' : 'environment';
+      await startWirelessCameraScanner();
+    }
+
+    async function exitWirelessScannerView() {
+      if (mobileHtml5QrCode) {
+        try {
+          if (mobileHtml5QrCode.isScanning) await mobileHtml5QrCode.stop();
+          await mobileHtml5QrCode.clear();
+        } catch(e) {}
+      }
+      if (mobileConn) {
+        try { mobileConn.close(); } catch(e) {}
+      }
+      if (mobilePeer) {
+        try { mobilePeer.destroy(); } catch(e) {}
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete('scanner');
+      window.history.replaceState({}, '', url.toString());
+
+      document.getElementById('wireless-scanner-view').classList.add('hidden');
     }
   </script>
 </body>
