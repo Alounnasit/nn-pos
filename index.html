@@ -1,0 +1,2282 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NN POS - ລະບົບຂາຍໜ້າຮ້ານ & ບໍລິຫານສາງ</title>
+  
+  <!-- Google Fonts: Noto Sans Lao & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Lao:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans Lao"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            },
+            accent: {
+              500: '#10b981',
+              600: '#059669',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <!-- html5-qrcode for Mobile Camera Barcode Scanner -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Noto Sans Lao', 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background-color: #f1f5f9;
+    }
+
+    /* Mobile Camera Scanner Laser Beam */
+    @keyframes scanLaser {
+      0% { top: 6%; opacity: 0.85; }
+      50% { top: 92%; opacity: 1; }
+      100% { top: 6%; opacity: 0.85; }
+    }
+    .scanner-laser {
+      position: absolute;
+      width: 100%;
+      height: 2.5px;
+      background: #10b981;
+      box-shadow: 0 0 10px #10b981, 0 0 20px #10b981;
+      animation: scanLaser 2s infinite ease-in-out;
+    }
+
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* 80mm Thermal Receipt Styling */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #thermal-receipt-area, #thermal-receipt-area * {
+        visibility: visible;
+      }
+      #thermal-receipt-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 80mm !important;
+        margin: 0 !important;
+        padding: 4mm !important;
+        background: #fff;
+        color: #000;
+        font-family: 'Courier New', Courier, monospace, 'Noto Sans Lao' !important;
+        font-size: 11px !important;
+        line-height: 1.25 !important;
+        display: block !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+
+    /* Animations */
+    .fade-in {
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-800">
+
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header class="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between shadow-md shrink-0 select-none">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+        <i class="fa-solid fa-cart-shopping text-white text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-bold tracking-tight flex items-center gap-2">
+          <span>NN POS</span>
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">Grocery Mart</span>
+        </h1>
+        <p class="text-xs text-slate-400">ລະບົບຂາຍໜ້າຮ້ານ & ບໍລິຫານສາງ (FEFO)</p>
+      </div>
+    </div>
+
+    <!-- Mode & Status Indicator -->
+    <div class="flex items-center space-x-2 text-xs">
+      <div id="conn-status" onclick="promptForGasApiUrl()" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer hover:opacity-90 active:scale-95 transition" title="ກົດເພື່ອຕັ້ງຄ່າ / ເຊື່ອມຕໍ່ Google Sheets API">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="conn-text">ເຊື່ອມຕໍ່ລະບົບ</span>
+      </div>
+
+      <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300">
+        <i class="fa-regular fa-user text-blue-400"></i>
+        <span id="cashier-name">ແຄັດເຊຍ 1</span>
+      </div>
+
+      <div class="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-mono">
+        <i class="fa-regular fa-clock text-amber-400"></i>
+        <span id="live-clock">--:--:--</span>
+      </div>
+    </div>
+
+    <!-- Quick Action Buttons -->
+    <div class="flex items-center space-x-1.5">
+      <button onclick="openRestockModal()" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow-sm" title="ຮັບສິນຄ້າເຂົ້າສາງ">
+        <i class="fa-solid fa-boxes-stacked text-amber-400"></i>
+        <span class="hidden lg:inline">ຮັບສິນຄ້າ (Restock)</span>
+      </button>
+
+      <button onclick="openDailyReportModal()" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow-sm" title="ລາຍງານຍອດຂາຍ">
+        <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+        <span class="hidden lg:inline">ສະຫຼຸບຍອດ</span>
+      </button>
+
+      <button onclick="toggleSound()" id="sound-btn" class="p-1.5 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition" title="ເປີດ/ປິດສຽງ">
+        <i class="fa-solid fa-volume-high text-sm"></i>
+      </button>
+
+      <button onclick="reloadCatalog(true)" class="p-1.5 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition" title="ໂຫຼດຂໍ້ມູນໃໝ່">
+        <i class="fa-solid fa-rotate text-sm"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTENT (SPLIT VIEW) ================= -->
+  <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+
+    <!-- LEFT COLUMN: SCANNER, CATEGORIES, PRODUCT CATALOG (62%) -->
+    <section class="flex-1 md:w-7/12 lg:w-8/12 flex flex-col bg-slate-100 border-r border-slate-200 overflow-hidden">
+      
+      <!-- Barcode Scanner Bar (High Visibility) -->
+      <div class="p-3 bg-white border-b border-slate-200 shadow-sm shrink-0">
+        <div class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <i class="fa-solid fa-barcode text-xl text-blue-600"></i>
+            </span>
+            <input 
+              type="text" 
+              id="barcode-input" 
+              placeholder="ຍິງບາໂຄ້ດ ຫຼື ພິມລະຫັດສິນຄ້າ ແລ້ວກົດ Enter... (ຮອງຮັບບາໂຄ້ດຊິງຊັ່ງ 13 ຫຼັກ 20xxxxx)" 
+              class="w-full pl-11 pr-10 py-2.5 text-sm md:text-base font-medium rounded-xl border-2 border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100 bg-blue-50/20 text-slate-900 transition shadow-inner placeholder-slate-400"
+              autocomplete="off"
+              autofocus
+            >
+            <button onclick="clearBarcodeInput()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+              <i class="fa-solid fa-circle-xmark"></i>
+            </button>
+          </div>
+          
+          <!-- Scanner Icon Button (ໄອຄອນສະແກນບາໂຄ້ດ) & Hidden Native Camera Input -->
+          <input 
+            type="file" 
+            id="barcode-file-input" 
+            accept="image/*" 
+            capture="environment" 
+            class="hidden" 
+            onchange="handleBarcodeFileSelected(this)"
+          >
+          <button 
+            type="button" 
+            onclick="handleScanButtonClick()" 
+            class="px-3.5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-95 text-white font-medium rounded-xl transition flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0" 
+            title="ເປີດກ້ອງສະແກນບາໂຄ້ດ"
+          >
+            <i class="fa-solid fa-qrcode text-xl"></i>
+          </button>
+
+          <button onclick="handleBarcodeSubmit()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-medium rounded-xl transition flex items-center gap-2 shadow-md shadow-blue-500/20 shrink-0">
+            <i class="fa-solid fa-plus"></i>
+            <span class="hidden sm:inline">ເພີ່ມລົງກະຕ່າ</span>
+          </button>
+        </div>
+
+        <!-- Scale Barcode Notice Helper -->
+        <div class="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 px-1">
+          <span class="flex items-center gap-1 text-slate-600 font-mono">
+            <i class="fa-solid fa-scale-balanced text-indigo-500"></i>
+            ຊິງຊັ່ງດິຈິຕອນ: ຮອງຮັບ <span class="bg-indigo-100 text-indigo-700 px-1 rounded font-bold">20 + PLU(5) + ນ້ຳໜັກ(5) + C</span>
+          </span>
+          <span class="hidden sm:inline text-slate-400">FEFO: ຕັດລ໊ອດໝົດອາຍຸກ່ອນອັດຕະໂນມັດ</span>
+        </div>
+      </div>
+
+      <!-- Category Filter Pills & Search -->
+      <div class="px-3 pt-2.5 pb-2 bg-white/70 backdrop-blur-sm border-b border-slate-200 shrink-0 flex flex-col sm:flex-row gap-2 items-center justify-between">
+        <!-- Categories Scroll -->
+        <div id="category-pills" class="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none">
+          <button class="cat-pill active px-3 py-1 text-xs font-semibold rounded-lg bg-blue-600 text-white transition">ທັງໝົດ</button>
+        </div>
+
+        <!-- Search Box -->
+        <div class="relative w-full sm:w-56 shrink-0">
+          <input 
+            type="text" 
+            id="search-filter" 
+            placeholder="ຄົ້ນຫາຊື່ສິນຄ້າ..." 
+            class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 bg-white"
+            oninput="renderProductGrid()"
+          >
+          <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2 text-slate-400 text-xs"></i>
+        </div>
+      </div>
+
+      <!-- Product Catalog Grid -->
+      <div class="flex-1 overflow-y-auto p-3">
+        <div id="product-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+          <!-- Dynamically populated product cards -->
+          <div class="col-span-full py-12 text-center text-slate-400">
+            <i class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-blue-500"></i>
+            <p>ກຳລັງໂຫຼດລາຍການສິນຄ້າ...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: CURRENT CART & CHECKOUT (38%) -->
+    <section class="flex-1 md:w-5/12 lg:w-4/12 flex flex-col bg-white shadow-xl relative z-10">
+      
+      <!-- Cart Header -->
+      <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+            <i class="fa-solid fa-receipt"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-800">ກະຕ່າສິນຄ້າ</h2>
+            <p class="text-[11px] text-slate-500"><span id="cart-item-count">0</span> ລາຍການ</p>
+          </div>
+        </div>
+        <button onclick="confirmClearCart()" class="text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-md transition flex items-center gap-1">
+          <i class="fa-regular fa-trash-can"></i>
+          <span>ລຶບທັງໝົດ</span>
+        </button>
+      </div>
+
+      <!-- Cart Items List (Scrollable) -->
+      <div id="cart-items-container" class="flex-1 overflow-y-auto p-2.5 space-y-2">
+        <!-- Empty Cart State -->
+        <div id="empty-cart-state" class="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+          <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3 text-slate-300">
+            <i class="fa-solid fa-basket-shopping text-3xl"></i>
+          </div>
+          <p class="text-sm font-medium text-slate-600">ຍັງບໍ່ມີສິນຄ້າໃນກະຕ່າ</p>
+          <p class="text-xs text-slate-400 mt-1 max-w-[200px]">ຍິງບາໂຄ້ດ ຫຼື ຄລິກເລືອກສິນຄ້າຈາກເມນູດ້ານຊ້າຍເພື່ອເລີ່ມຂາຍ</p>
+        </div>
+      </div>
+
+      <!-- Cart Summary & Payment Panel (Fixed at bottom) -->
+      <div class="border-t border-slate-200 bg-slate-50 p-3.5 shrink-0 shadow-lg space-y-2.5">
+        
+        <!-- Breakdown Rows -->
+        <div class="space-y-1.5 text-xs text-slate-600">
+          <div class="flex justify-between">
+            <span>ລວມມູນຄ່າ (Subtotal):</span>
+            <span id="cart-subtotal" class="font-mono font-semibold text-slate-800">0 ₭</span>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <span class="flex items-center gap-1">
+              <span>ສ່ວນຫຼຸດ (Discount):</span>
+              <button onclick="promptDiscount()" class="text-blue-600 hover:underline text-[10px]">(ແກ້ໄຂ)</button>
+            </span>
+            <span id="cart-discount" class="font-mono text-rose-500 font-semibold">- 0 ₭</span>
+          </div>
+
+          <!-- Grand Total Bar -->
+          <div class="pt-2 border-t border-slate-200 flex justify-between items-baseline">
+            <span class="text-sm font-bold text-slate-900">ຍອດຊຳລະລວມ:</span>
+            <span id="cart-grand-total" class="text-2xl font-bold font-mono text-blue-600 tracking-tight">0 ₭</span>
+          </div>
+        </div>
+
+        <!-- Checkout Buttons -->
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <!-- Cash Payment -->
+          <button 
+            onclick="openPaymentModal('CASH')" 
+            id="btn-pay-cash"
+            disabled
+            class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:pointer-events-none active:scale-98 text-white font-bold rounded-xl transition shadow-md shadow-emerald-600/20 flex flex-col items-center justify-center leading-tight"
+          >
+            <div class="flex items-center gap-1.5 text-sm">
+              <i class="fa-solid fa-money-bill-wave"></i>
+              <span>ເງິນສົດ (Cash)</span>
+            </div>
+            <span class="text-[10px] font-normal text-emerald-100 opacity-90">[F8] ຄິດໄລ່ເງິນທອນ</span>
+          </button>
+
+          <!-- Transfer / QR Payment -->
+          <button 
+            onclick="openPaymentModal('BCEL_ONE')" 
+            id="btn-pay-qr"
+            disabled
+            class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:pointer-events-none active:scale-98 text-white font-bold rounded-xl transition shadow-md shadow-indigo-600/20 flex flex-col items-center justify-center leading-tight"
+          >
+            <div class="flex items-center gap-1.5 text-sm">
+              <i class="fa-solid fa-qrcode"></i>
+              <span>BCEL One / ໂອນ</span>
+            </div>
+            <span class="text-[10px] font-normal text-indigo-100 opacity-90">[F9] ສະແກນ QR</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= PAYMENT MODAL ================= -->
+  <div id="payment-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col fade-in">
+      
+      <!-- Modal Header -->
+      <div class="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i id="modal-pay-icon" class="fa-solid fa-money-bill-wave text-emerald-400 text-lg"></i>
+          <h3 id="modal-pay-title" class="font-bold text-base">ຊຳລະເງິນສົດ</h3>
+        </div>
+        <button onclick="closePaymentModal()" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 space-y-4">
+        
+        <!-- Due Amount Banner -->
+        <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-between">
+          <div>
+            <span class="text-xs text-blue-700 font-medium">ຍອດທີ່ຕ້ອງຊຳລະທັງໝົດ</span>
+            <p class="text-xs text-slate-500">ລວມສິນຄ້າ <span id="pay-total-items">0</span> ລາຍການ</p>
+          </div>
+          <span id="modal-grand-total" class="text-2xl font-bold font-mono text-blue-700">0 ₭</span>
+        </div>
+
+        <!-- CASH SECTION -->
+        <div id="cash-payment-section" class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ຈຳນວນເງິນທີ່ໄດ້ຮັບ (Received Amount)</label>
+            <div class="relative">
+              <input 
+                type="number" 
+                id="cash-received-input" 
+                placeholder="0" 
+                class="w-full pl-4 pr-12 py-2.5 text-xl font-mono font-bold rounded-xl border-2 border-slate-300 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-100 text-slate-900"
+                oninput="calcChange()"
+              >
+              <span class="absolute inset-y-0 right-0 pr-4 flex items-center font-bold text-slate-400">₭</span>
+            </div>
+          </div>
+
+          <!-- Quick Cash Bills (Lao Kip) -->
+          <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+            <button onclick="addCash(10000)" class="py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg transition">+10k</button>
+            <button onclick="addCash(20000)" class="py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg transition">+20k</button>
+            <button onclick="addCash(50000)" class="py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg transition">+50k</button>
+            <button onclick="addCash(100000)" class="py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg transition">+100k</button>
+            <button onclick="addCash(500000)" class="py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-lg transition">+500k</button>
+            <button onclick="setExactCash()" class="py-1.5 text-xs font-semibold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg transition">ພໍດີ</button>
+          </div>
+
+          <!-- Change Box -->
+          <div class="p-3.5 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between">
+            <span class="text-sm font-semibold text-slate-700">ເງິນທອນ (Change):</span>
+            <span id="change-amount-display" class="text-xl font-bold font-mono text-slate-800">0 ₭</span>
+          </div>
+          <div id="change-status-msg" class="text-xs text-rose-600 hidden font-medium">
+            ⚠️ ຈຳນວນເງິນທີ່ຮັບມາ ຍັງບໍ່ພໍກັບຍອດບິນ
+          </div>
+        </div>
+
+        <!-- BCEL ONE / QR SECTION -->
+        <div id="qr-payment-section" class="hidden flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-2">
+          <div class="w-48 h-48 bg-white p-2 rounded-xl shadow-md border border-slate-300 flex items-center justify-center relative">
+            <img 
+              id="qr-image" 
+              src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=NNPOS-DEMO" 
+              alt="BCEL One QR" 
+              class="w-full h-full object-contain rounded-lg"
+            >
+          </div>
+          <div class="text-xs text-slate-600">
+            <p class="font-bold text-slate-800">ສະແກນຜ່ານ BCEL One ຫຼື ທະນາຄານອື່ນໆ (LAO QR)</p>
+            <p>ກະລຸນາກວດສອບຍອດເງິນໂອນໃຫ້ຖືກຕ້ອງກ່ອນກົດຢືນຢັນ</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+        <button onclick="closePaymentModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition">
+          ຍົກເລີກ
+        </button>
+        <button 
+          id="btn-confirm-checkout" 
+          onclick="submitCheckout()" 
+          class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold rounded-xl transition shadow-md shadow-blue-600/30 flex items-center justify-center gap-2 text-sm"
+        >
+          <i class="fa-solid fa-print"></i>
+          <span>ຢືນຢັນການຊຳລະ & ພິມໃບບິນ</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= RESTOCK MODAL ================= -->
+  <div id="restock-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col fade-in">
+      <div class="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+        <h3 class="font-bold text-sm flex items-center gap-2">
+          <i class="fa-solid fa-boxes-stacked text-amber-400"></i>
+          <span>ຮັບສິນຄ້າໃໝ່ເຂົ້າສາງ (New Batch)</span>
+        </h3>
+        <button onclick="closeRestockModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form onsubmit="handleRestockSubmit(event)" class="p-5 space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">ເລືອກສິນຄ້າ</label>
+          <select id="restock-product-id" required class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:border-blue-500 bg-white">
+            <!-- options inserted by JS -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">ເລກ Batch / Lot (ປະໄວ້ວ່າງເພື່ອສ້າງອັດຕະໂນມັດ)</label>
+          <input type="text" id="restock-batch-id" placeholder="LOT-26XX" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ວັນໝົດອາຍຸ (FEFO)</label>
+            <input type="date" id="restock-expiry-date" required class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">ຈຳນວນຮັບເຂົ້າ (ໜ່ວຍຍ່ອຍ)</label>
+            <input type="number" id="restock-qty" min="1" step="any" required placeholder="0" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">ຕົ້ນທຶນຕໍ່ໜ່ວຍຍ່ອຍ (LAK)</label>
+          <input type="number" id="restock-cost" min="0" required placeholder="0" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300">
+        </div>
+
+        <div class="pt-3 flex gap-2">
+          <button type="button" onclick="closeRestockModal()" class="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">ຍົກເລີກ</button>
+          <button type="submit" class="flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md">ບັນທຶກເຂົ້າສາງ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= DAILY REPORT MODAL ================= -->
+  <div id="report-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col fade-in">
+      <div class="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+        <h3 class="font-bold text-sm flex items-center gap-2">
+          <i class="fa-solid fa-chart-line text-emerald-400"></i>
+          <span>ສະຫຼຸບຍອດຂາຍປະຈຳວັນ (Daily Summary)</span>
+        </h3>
+        <button onclick="closeReportModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="report-modal-content" class="p-5 space-y-4">
+        <div class="text-center py-6 text-slate-400">
+          <i class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-blue-500"></i>
+          <p class="text-xs">ກຳລັງຄິດໄລ່ຍອດຂາຍ...</p>
+        </div>
+      </div>
+      <div class="p-3 bg-slate-50 border-t border-slate-200 text-right">
+        <button onclick="closeReportModal()" class="px-4 py-1.5 text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg">ປິດ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MOBILE CAMERA SCANNER MODAL ================= -->
+  <div id="camera-scanner-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden flex flex-col items-center justify-center p-3 sm:p-4 fade-in">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl relative">
+      
+      <!-- Header -->
+      <div class="px-4 py-3 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between text-white">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+            <i class="fa-solid fa-camera text-sm"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm">ກ້ອງສະແກນບາໂຄ້ດ (Mobile Camera)</h3>
+            <p class="text-[10px] text-slate-400">ຮອງຮັບ EAN-13, UPC, Code 128, ບາໂຄ້ດຊິງຊັ່ງ & QR Code</p>
+          </div>
+        </div>
+        <button onclick="closeMobileCameraScanner()" class="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Camera Viewport Box -->
+      <div class="relative bg-black w-full flex items-center justify-center overflow-hidden" style="min-height: 290px; max-height: 380px;">
+        <div id="camera-reader" class="w-full h-full"></div>
+
+        <!-- Target Overlay Viewfinder Box -->
+        <div class="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
+          <div class="relative w-64 h-48 border-2 border-dashed border-indigo-400/60 rounded-2xl flex items-center justify-center shadow-lg">
+            <!-- Corners -->
+            <div class="absolute -top-1 -left-1 w-5 h-5 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg"></div>
+            <div class="absolute -top-1 -right-1 w-5 h-5 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg"></div>
+            <div class="absolute -bottom-1 -left-1 w-5 h-5 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg"></div>
+            <div class="absolute -bottom-1 -right-1 w-5 h-5 border-b-4 border-r-4 border-emerald-400 rounded-br-lg"></div>
+            
+            <!-- Animated Laser line -->
+            <div class="scanner-laser"></div>
+          </div>
+        </div>
+
+        <!-- Camera Loading Overlay -->
+        <div id="camera-loading" class="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center text-slate-300 gap-2 z-20">
+          <i class="fa-solid fa-spinner fa-spin text-3xl text-indigo-400"></i>
+          <p class="text-xs">ກຳລັງເປີດກ້ອງມືຖື...</p>
+        </div>
+
+        <!-- Camera Error Overlay Box (Fallback to Native Camera) -->
+        <div id="camera-error-box" class="absolute inset-0 bg-slate-900/98 flex flex-col items-center justify-center p-5 text-center text-slate-300 gap-3 hidden z-30">
+          <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-camera"></i>
+          </div>
+          <h4 class="font-bold text-sm text-white">ເປີດກ້ອງສະແກນບາໂຄ້ດ</h4>
+          <p id="camera-error-msg" class="text-xs text-slate-300 max-w-xs leading-relaxed">
+            ກະລຸນາກົດປຸ່ມດ້ານລຸ່ມເພື່ອເປີດກ້ອງຖ່າຍສະແກນໄດ້ໂດຍກົງ
+          </p>
+
+          <!-- Primary Prominent Native Camera Button -->
+          <button 
+            type="button" 
+            onclick="triggerNativeCamera()" 
+            class="w-full max-w-xs py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white font-bold rounded-2xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 text-xs sm:text-sm"
+          >
+            <i class="fa-solid fa-camera text-base"></i>
+            <span>📸 ເປີດກ້ອງມືຖືຖ່າຍສະແກນ (ແນະນຳ 100% ໃຊ້ໄດ້)</span>
+          </button>
+
+          <!-- Secondary Actions -->
+          <div class="flex items-center gap-2 pt-1 w-full justify-center">
+            <button type="button" onclick="retryLiveCamera()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-medium rounded-xl transition text-[11px] border border-slate-700 flex items-center gap-1">
+              <i class="fa-solid fa-rotate text-[10px]"></i>
+              <span>ລອງເປີດ Live ອີກຄັ້ງ</span>
+            </button>
+            <button type="button" onclick="closeMobileCameraScanner()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 font-medium rounded-xl transition text-[11px] border border-slate-700">
+              ປິດ
+            </button>
+          </div>
+        </div>
+
+        <!-- Last Scanned Feedback Toast (Floating) -->
+        <div id="scan-feedback-toast" class="absolute top-3 left-4 right-4 bg-emerald-600/95 text-white px-3 py-2 rounded-xl text-xs font-semibold shadow-lg text-center hidden transition transform translate-y-0 z-20">
+          <span id="scan-feedback-text"></span>
+        </div>
+      </div>
+
+      <!-- Controls Footer -->
+      <div class="p-3.5 bg-slate-800/90 border-t border-slate-700 space-y-2.5">
+        
+        <!-- Options & Camera Toggles -->
+        <div class="flex items-center justify-between text-xs text-slate-300">
+          <!-- Continuous Mode Checkbox -->
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="continuous-scan-toggle" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-700 border-slate-600">
+            <span class="text-xs font-medium">ສະແກນຕໍ່ເນື່ອງ (Auto Add)</span>
+          </label>
+
+          <!-- Controls -->
+          <div class="flex items-center gap-1.5">
+            <button id="camera-switch-btn" onclick="switchCamera()" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs flex items-center gap-1.5 transition hidden" title="ສະຫຼັບກ້ອງ ໜ້າ/ຫຼັງ">
+              <i class="fa-solid fa-camera-rotate"></i>
+              <span>ສະຫຼັບກ້ອງ</span>
+            </button>
+            <button id="camera-torch-btn" onclick="toggleCameraTorch()" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs flex items-center gap-1.5 transition hidden" title="ເປີດ/ປິດໄຟສາຍ">
+              <i class="fa-regular fa-lightbulb"></i>
+              <span>ໄຟສາຍ</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hint & Action Buttons -->
+        <div class="flex items-center justify-between pt-1">
+          <p class="text-[11px] text-slate-400 flex items-center gap-1">
+            <i class="fa-solid fa-circle-info text-indigo-400"></i>
+            <span>ຈໍ່ກ້ອງໃສ່ບາໂຄ້ດໃຫ້ກົງກອບ</span>
+          </p>
+          <div class="flex items-center gap-2">
+            <button onclick="triggerNativeCamera()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow" title="ຖ່າຍຮູບສະແກນບາໂຄ້ດ">
+              <i class="fa-solid fa-camera"></i>
+              <span>ຖ່າຍຮູບສະແກນ</span>
+            </button>
+            <button onclick="closeMobileCameraScanner()" class="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-xl transition">
+              ປິດກ້ອງ
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= HIDDEN 80mm THERMAL RECEIPT (FOR PRINTING) ================= -->
+  <div id="thermal-receipt-area" class="hidden">
+    <div style="text-align: center; margin-bottom: 8px;">
+      <h2 style="font-size: 15px; font-weight: bold; margin: 0;" id="print-store-name">ຮ້ານຂາຍເຄື່ອງຍ່ອຍ NN POS</h2>
+      <p style="font-size: 10px; margin: 2px 0;" id="print-store-address">ນະຄອນຫຼວງວຽງຈັນ, ສປປ ລາວ</p>
+      <p style="font-size: 10px; margin: 2px 0;" id="print-store-phone">Tel: 020-5555-8888</p>
+      <p style="margin: 4px 0; border-bottom: 1px dashed #000;"></p>
+    </div>
+
+    <div style="font-size: 10px; margin-bottom: 6px;">
+      <div style="display: flex; justify-content: space-between;">
+        <span>ເລກບິນ: <strong id="print-receipt-no">INV-XXXXX</strong></span>
+        <span id="print-datetime">2026-09-29 15:00</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>ພະນັກງານ: <span id="print-cashier">ແຄັດເຊຍ 1</span></span>
+        <span>ການຊຳລະ: <span id="print-pay-type">CASH</span></span>
+      </div>
+      <p style="margin: 4px 0; border-bottom: 1px dashed #000;"></p>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 6px;">
+      <thead>
+        <tr style="border-bottom: 1px dashed #000;">
+          <th style="text-align: left; padding: 2px 0;">ລາຍການ</th>
+          <th style="text-align: center; padding: 2px 0;">ຈ/ນ</th>
+          <th style="text-align: right; padding: 2px 0;">ລາຄາ</th>
+          <th style="text-align: right; padding: 2px 0;">ລວມ</th>
+        </tr>
+      </thead>
+      <tbody id="print-items-body">
+        <!-- items injected here -->
+      </tbody>
+    </table>
+
+    <div style="border-top: 1px dashed #000; padding-top: 4px; font-size: 10px;">
+      <div style="display: flex; justify-content: space-between; margin: 2px 0;">
+        <span>ລວມມູນຄ່າ:</span>
+        <span id="print-subtotal">0 ₭</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin: 2px 0;">
+        <span>ສ່ວນຫຼຸດ:</span>
+        <span id="print-discount">0 ₭</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin: 4px 0; font-size: 13px; font-weight: bold; border-top: 1px solid #000; padding-top: 4px;">
+        <span>ຍອດຊຳລະສຸດທິ:</span>
+        <span id="print-grand-total">0 ₭</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin: 2px 0;">
+        <span>ຮັບເງິນ:</span>
+        <span id="print-received">0 ₭</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin: 2px 0; font-weight: bold;">
+        <span>ເງິນທອນ:</span>
+        <span id="print-change">0 ₭</span>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 12px; font-size: 10px; border-top: 1px dashed #000; padding-top: 8px;">
+      <p style="margin: 2px 0; font-weight: bold;">*** ຂອບໃຈທີ່ມາອຸດໜູນ ***</p>
+      <p style="margin: 2px 0;">ສິນຄ້າຊື້ແລ້ວບໍ່ຮັບປ່ຽນ ຫຼື ຄືນ</p>
+      <p style="font-size: 8px; color: #555; margin-top: 4px;">Software by NN POS</p>
+    </div>
+  </div>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    /**
+     * STATE MANAGEMENT
+     */
+    const state = {
+      isAppsScript: typeof google !== 'undefined' && typeof google.script !== 'undefined',
+      products: [],
+      units: [],
+      barcodeMap: {},
+      categories: ['ທັງໝົດ'],
+      activeCategory: 'ທັງໝົດ',
+      searchQuery: '',
+      cart: [], // Array of items
+      discount: 0,
+      activePaymentType: 'CASH',
+      soundEnabled: true,
+      storeInfo: {
+        name: 'ຮ້ານຂາຍເຄື່ອງຍ່ອຍ NN POS',
+        address: 'ບ້ານ ໂພນຕ້ອງ, ເມືອງ ຈັນທະບູລີ, ນະຄອນຫຼວງວຽງຈັນ',
+        phone: '020-5555-8888',
+        currency: 'LAK'
+      }
+    };
+
+    // Audio effects synthesized via Web Audio API (No external mp3 assets required)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(type = 'success') {
+      if (!state.soundEnabled) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'success') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.08);
+          gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.08);
+        } else if (type === 'error') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(250, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.25);
+        } else if (type === 'cash') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+          osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.08); // E5
+          osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.16); // G5
+          gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.28);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.28);
+        }
+      } catch (e) {
+        console.warn('Audio playback error', e);
+      }
+    }
+
+    function toggleSound() {
+      state.soundEnabled = !state.soundEnabled;
+      const btn = document.getElementById('sound-btn');
+      if (state.soundEnabled) {
+        btn.innerHTML = '<i class="fa-solid fa-volume-high text-sm"></i>';
+        btn.classList.remove('text-rose-400');
+        playBeep('success');
+      } else {
+        btn.innerHTML = '<i class="fa-solid fa-volume-xmark text-sm"></i>';
+        btn.classList.add('text-rose-400');
+      }
+    }
+
+    /**
+     * INITIALIZATION
+     */
+    window.addEventListener('DOMContentLoaded', () => {
+      startLiveClock();
+      setupKeyboardShortcuts();
+      initCatalogData();
+    });
+
+    function startLiveClock() {
+      const clockEl = document.getElementById('live-clock');
+      setInterval(() => {
+        const now = new Date();
+        clockEl.innerText = now.toLocaleTimeString('lo-LA', { hour12: false });
+      }, 1000);
+    }
+
+    function setupKeyboardShortcuts() {
+      window.addEventListener('keydown', (e) => {
+        // F8 -> Cash Payment
+        if (e.key === 'F8') {
+          e.preventDefault();
+          if (state.cart.length > 0) openPaymentModal('CASH');
+        }
+        // F9 -> BCEL One
+        else if (e.key === 'F9') {
+          e.preventDefault();
+          if (state.cart.length > 0) openPaymentModal('BCEL_ONE');
+        }
+        // Escape -> Close Modals or Clear Barcode
+        else if (e.key === 'Escape') {
+          closePaymentModal();
+          closeRestockModal();
+          closeReportModal();
+          clearBarcodeInput();
+        }
+        // Focus Barcode scanner on pressing '/'
+        else if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+          e.preventDefault();
+          document.getElementById('barcode-input').focus();
+        }
+      });
+
+      // Enter key on barcode input
+      document.getElementById('barcode-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleBarcodeSubmit();
+        }
+      });
+    }
+
+    /**
+     * =========================================================================
+     * 🌐 GOOGLE APPS SCRIPT API BRIDGE (FOR GITHUB PAGES HOSTING)
+     * =========================================================================
+     */
+    let GAS_API_URL = localStorage.getItem('nn_pos_gas_url') || '';
+
+    function setGasApiUrl(url) {
+      if (url) {
+        url = url.trim();
+        localStorage.setItem('nn_pos_gas_url', url);
+        GAS_API_URL = url;
+        initCatalogData();
+      }
+    }
+
+    function promptForGasApiUrl() {
+      if (state.isAppsScript) {
+        Swal.fire({
+          icon: 'info',
+          title: 'ເຊື່ອມຕໍ່ Google Sheets ແລ້ວ',
+          text: 'ລະບົບກຳລັງເຮັດວຽກພາຍໃນ Google Apps Script ໂດຍກົງ'
+        });
+        return;
+      }
+
+      Swal.fire({
+        title: 'ຕັ້ງຄ່າລິ້ງ Google Sheets Web App',
+        html: `
+          <div class="text-xs text-slate-500 text-left mb-3">
+            ກະລຸນາວາງລິ້ງ <b>Web App URL</b> ທີ່ໄດ້ຈາກການ Deploy ໃນ Google Apps Script ເພື່ອເຊື່ອມຕໍ່ຖານຂໍ້ມູນ:
+          </div>
+          <input id="swal-gas-url" class="swal2-input text-xs" placeholder="https://script.google.com/macros/s/.../exec" value="${GAS_API_URL}">
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'ບັນທຶກ & ເຊື່ອມຕໍ່',
+        cancelButtonText: 'ຍົກເລີກ',
+        confirmButtonColor: '#2563eb',
+        preConfirm: () => {
+          const val = document.getElementById('swal-gas-url').value.trim();
+          if (!val) {
+            Swal.showValidationMessage('ກະລຸນາໃສ່ Web App URL');
+          }
+          return val;
+        }
+      }).then((res) => {
+        if (res.isConfirmed && res.value) {
+          setGasApiUrl(res.value);
+          Swal.fire('ສຳເລັດ!', 'ບັນທຶກລິ້ງ API ແລະ ກຳລັງໂຫຼດຂໍ້ມູນສິນຄ້າ...', 'success');
+        }
+      });
+    }
+
+    /**
+     * LOAD CATALOG DATA (Apps Script or GitHub Pages REST API or Mock)
+     */
+    function initCatalogData() {
+      if (state.isAppsScript) {
+        document.getElementById('conn-text').innerText = 'Google Sheets (Apps Script)';
+        google.script.run
+          .withSuccessHandler(onDataLoaded)
+          .withFailureHandler(onDataLoadError)
+          .getPOSInitialData();
+      } else if (GAS_API_URL) {
+        document.getElementById('conn-text').innerText = 'ກຳລັງໂຫຼດ Google Sheets...';
+        document.getElementById('conn-status').className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 cursor-pointer';
+
+        fetch(`${GAS_API_URL}?action=getPOSInitialData`)
+          .then(r => r.json())
+          .then(json => {
+            if (json.success && json.data) {
+              document.getElementById('conn-text').innerText = 'Google Sheets (GitHub API)';
+              document.getElementById('conn-status').className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer';
+              onDataLoaded(json.data);
+            } else {
+              throw new Error(json.error || 'Failed to fetch data');
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            document.getElementById('conn-text').innerText = 'ເຊື່ອມຕໍ່ບໍ່ໄດ້ (ກົດຕັ້ງຄ່າ)';
+            document.getElementById('conn-status').className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 cursor-pointer';
+            loadFallbackMockData();
+          });
+      } else {
+        document.getElementById('conn-text').innerText = 'ໂໝດທົດລອງ (ກົດຕັ້ງຄ່າ API)';
+        document.getElementById('conn-status').className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer';
+        loadFallbackMockData();
+      }
+    }
+
+    function loadFallbackMockData() {
+      const mockData = {
+        products: [
+            { product_id: 'P001', name_lo: 'ເບຍລາວ ກະປ໋ອງ 330ml', category: 'ເຄື່ອງດື່ມ', base_uom: 'ກະປ໋ອງ', is_weighable: false, plu_code: '', min_stock: 48, total_stock: 144, next_expiry: '2026-11-30', units: [] },
+            { product_id: 'P002', name_lo: 'ນ້ຳດື່ມ ຫົວເສືອ 600ml', category: 'ເຄື່ອງດື່ມ', base_uom: 'ຕຸກ', is_weighable: false, plu_code: '', min_stock: 24, total_stock: 120, next_expiry: '2027-06-30', units: [] },
+            { product_id: 'P003', name_lo: 'ໝີ່ໄວໄວ ຕົ້ມຍຳກຸ້ງ', category: 'ອາຫານແຫ້ງ', base_uom: 'ຊອງ', is_weighable: false, plu_code: '', min_stock: 30, total_stock: 60, next_expiry: '2027-01-20', units: [] },
+            { product_id: 'P004', name_lo: 'ຊີ້ນໝູສາມຊັ້ນ (ຊັ່ງກິໂລ)', category: 'ອາຫານສົດ', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00105', min_stock: 5, total_stock: 15, next_expiry: '2026-10-05', units: [] },
+            { product_id: 'P005', name_lo: 'ໝາກກ້ຽງຫວານ (ຊັ່ງກິໂລ)', category: 'ໝາກໄມ້', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00106', min_stock: 10, total_stock: 25, next_expiry: '2026-10-10', units: [] },
+            { product_id: 'P006', name_lo: 'ໄຂ່ໄກ່ເບີ 1', category: 'ຂອງສົດ', base_uom: 'ຟອງ', is_weighable: false, plu_code: '', min_stock: 60, total_stock: 120, next_expiry: '2026-10-20', units: [] },
+            { product_id: 'P007', name_lo: 'ກາເຟດາວ 3in1 (ສີແດງ)', category: 'ເຄື່ອງດື່ມ', base_uom: 'ຊອງ', is_weighable: false, plu_code: '', min_stock: 50, total_stock: 100, next_expiry: '2027-08-30', units: [] },
+            { product_id: 'P008', name_lo: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', category: 'ນົມແລະເຄື່ອງດື່ມ', base_uom: 'ກ່ອງ', is_weighable: false, plu_code: '', min_stock: 36, total_stock: 48, next_expiry: '2026-12-15', units: [] }
+          ],
+          units: [
+            { barcode: '8850001', product_id: 'P001', unit_name: 'ກະປ໋ອງ', conversion_qty: 1, selling_price: 15000, product_name: 'ເບຍລາວ ກະປ໋ອງ 330ml', base_uom: 'ກະປ໋ອງ' },
+            { barcode: '8850002', product_id: 'P001', unit_name: 'ແພັກ (6 ກະປ໋ອງ)', conversion_qty: 6, selling_price: 88000, product_name: 'ເບຍລາວ ກະປ໋ອງ 330ml', base_uom: 'ກະປ໋ອງ' },
+            { barcode: '8850003', product_id: 'P001', unit_name: 'ແກັດ (24 ກະປ໋ອງ)', conversion_qty: 24, selling_price: 340000, product_name: 'ເບຍລາວ ກະປ໋ອງ 330ml', base_uom: 'ກະປ໋ອງ' },
+            { barcode: '8850004', product_id: 'P002', unit_name: 'ຕຸກ', conversion_qty: 1, selling_price: 5000, product_name: 'ນ້ຳດື່ມ ຫົວເສືອ 600ml', base_uom: 'ຕຸກ' },
+            { barcode: '8850005', product_id: 'P002', unit_name: 'ແພັກ (12 ຕຸກ)', conversion_qty: 12, selling_price: 55000, product_name: 'ນ້ຳດື່ມ ຫົວເສືອ 600ml', base_uom: 'ຕຸກ' },
+            { barcode: '8850006', product_id: 'P003', unit_name: 'ຊອງ', conversion_qty: 1, selling_price: 4000, product_name: 'ໝີ່ໄວໄວ ຕົ້ມຍຳກຸ້ງ', base_uom: 'ຊອງ' },
+            { barcode: '8850007', product_id: 'P003', unit_name: 'ແພັກ (10 ຊອງ)', conversion_qty: 10, selling_price: 38000, product_name: 'ໝີ່ໄວໄວ ຕົ້ມຍຳກຸ້ງ', base_uom: 'ຊອງ' },
+            { barcode: '00105', product_id: 'P004', unit_name: 'ກິໂລກຣາມ', conversion_qty: 1, selling_price: 95000, product_name: 'ຊີ້ນໝູສາມຊັ້ນ (ຊັ່ງກິໂລ)', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00105' },
+            { barcode: '00106', product_id: 'P005', unit_name: 'ກິໂລກຣາມ', conversion_qty: 1, selling_price: 35000, product_name: 'ໝາກກ້ຽງຫວານ (ຊັ່ງກິໂລ)', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00106' },
+            { barcode: '8850008', product_id: 'P006', unit_name: 'ຟອງ', conversion_qty: 1, selling_price: 2500, product_name: 'ໄຂ່ໄກ່ເບີ 1', base_uom: 'ຟອງ' },
+            { barcode: '8850009', product_id: 'P006', unit_name: 'ແຕະ (30 ຟອງ)', conversion_qty: 30, selling_price: 72000, product_name: 'ໄຂ່ໄກ່ເບີ 1', base_uom: 'ຟອງ' },
+            { barcode: '8850010', product_id: 'P007', unit_name: 'ຊອງ', conversion_qty: 1, selling_price: 3000, product_name: 'ກາເຟດາວ 3in1 (ສີແດງ)', base_uom: 'ຊອງ' },
+            { barcode: '8850011', product_id: 'P007', unit_name: 'ຖົງໃຫຍ່ (25 ຊອງ)', conversion_qty: 25, selling_price: 70000, product_name: 'ກາເຟດາວ 3in1 (ສີແດງ)', base_uom: 'ຊອງ' },
+            { barcode: '8850012', product_id: 'P008', unit_name: 'ກ່ອງ', conversion_qty: 1, selling_price: 7000, product_name: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', base_uom: 'ກ່ອງ' },
+            { barcode: '8850013', product_id: 'P008', unit_name: 'ແພັກ (4 ກ່ອງ)', conversion_qty: 4, selling_price: 26000, product_name: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', base_uom: 'ກ່ອງ' }
+          ],
+          categories: ['ທັງໝົດ', 'ເຄື່ອງດື່ມ', 'ອາຫານແຫ້ງ', 'ອາຫານສົດ', 'ໝາກໄມ້', 'ຂອງສົດ', 'ນົມແລະເຄື່ອງດື່ມ'],
+          storeInfo: state.storeInfo
+        };
+
+        // link units to products
+        mockData.products.forEach(p => {
+          p.units = mockData.units.filter(u => u.product_id === p.product_id);
+        });
+
+        setTimeout(() => onDataLoaded(mockData), 300);
+    }
+
+    function onDataLoaded(data) {
+      if (!data || data.error) {
+        Swal.fire('ຂໍ້ຜິດພາດ', data ? data.error : 'ບໍ່ສາມາດດຶງຂໍ້ມູນສິນຄ້າໄດ້', 'error');
+        return;
+      }
+
+      state.products = data.products || [];
+      state.units = data.units || [];
+      state.categories = data.categories || ['ທັງໝົດ'];
+      if (data.storeInfo) state.storeInfo = data.storeInfo;
+
+      // Build Barcode lookup map
+      state.barcodeMap = {};
+      state.units.forEach(u => {
+        state.barcodeMap[u.barcode] = u;
+      });
+
+      renderCategories();
+      renderProductGrid();
+      populateRestockSelect();
+    }
+
+    function onDataLoadError(err) {
+      console.error(err);
+      Swal.fire('ຂໍ້ຜິດພາດໃນການເຊື່ອມຕໍ່', err.message || 'ບໍ່ສາມາດເຊື່ອມຕໍ່ Google Sheets ໄດ້', 'error');
+    }
+
+    function reloadCatalog(showNotification = false) {
+      initCatalogData();
+      if (showNotification) {
+        const Toast = Swal.mixin({
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 1500
+        });
+        Toast.fire({ icon: 'info', title: 'ອັບເດດຂໍ້ມູນສິນຄ້າແລ້ວ' });
+      }
+    }
+
+    /**
+     * UI RENDERING: CATEGORIES & PRODUCT GRID
+     */
+    function renderCategories() {
+      const container = document.getElementById('category-pills');
+      container.innerHTML = '';
+
+      state.categories.forEach(cat => {
+        const btn = document.createElement('button');
+        const isActive = cat === state.activeCategory;
+        btn.className = `cat-pill px-3 py-1 text-xs font-semibold rounded-lg transition shrink-0 ${
+          isActive 
+            ? 'bg-blue-600 text-white shadow-sm' 
+            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+        }`;
+        btn.innerText = cat;
+        btn.onclick = () => {
+          state.activeCategory = cat;
+          renderCategories();
+          renderProductGrid();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderProductGrid() {
+      const grid = document.getElementById('product-grid');
+      grid.innerHTML = '';
+
+      const query = (document.getElementById('search-filter').value || '').toLowerCase().trim();
+
+      const filtered = state.products.filter(p => {
+        const matchCategory = state.activeCategory === 'ທັງໝົດ' || p.category === state.activeCategory;
+        const matchSearch = !query || 
+          p.name_lo.toLowerCase().includes(query) || 
+          p.product_id.toLowerCase().includes(query) || 
+          (p.plu_code && p.plu_code.includes(query)) ||
+          p.units.some(u => u.barcode.includes(query) || u.unit_name.toLowerCase().includes(query));
+        return matchCategory && matchSearch;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-400">
+            <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-300"></i>
+            <p class="text-sm">ບໍ່ພົບສິນຄ້າທີ່ກົງກັບເງື່ອນໄຂ</p>
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-md transition p-3 flex flex-col justify-between relative group';
+
+        // Stock status badge
+        let stockBadge = '';
+        if (p.total_stock <= 0) {
+          stockBadge = `<span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-700">ໝົດສະຕ໋ອກ</span>`;
+        } else if (p.total_stock <= p.min_stock) {
+          stockBadge = `<span class="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-700">ໃກ້ໝົດ (${p.total_stock})</span>`;
+        } else {
+          stockBadge = `<span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700">ສະຕ໋ອກ: ${p.total_stock}</span>`;
+        }
+
+        // Units options buttons
+        let unitsHtml = '';
+        if (p.units && p.units.length > 0) {
+          unitsHtml = p.units.map(u => `
+            <button 
+              onclick="addItemToCartByUnit('${u.barcode}')" 
+              class="w-full text-left px-2 py-1 text-[11px] rounded bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 transition flex justify-between items-center"
+            >
+              <span class="truncate font-medium">${u.unit_name}</span>
+              <span class="font-mono font-bold text-slate-800 ml-1">${formatMoney(u.selling_price)}</span>
+            </button>
+          `).join('');
+        } else {
+          unitsHtml = `<div class="text-[10px] text-slate-400 py-1 text-center">ບໍ່ມີໜ່ວຍຂາຍ</div>`;
+        }
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-start justify-between gap-1 mb-1.5">
+              <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">${p.category}</span>
+              ${stockBadge}
+            </div>
+            
+            <h4 class="font-bold text-xs sm:text-sm text-slate-800 line-clamp-2 leading-snug mb-1" title="${p.name_lo}">
+              ${p.name_lo}
+            </h4>
+
+            ${p.is_weighable ? `
+              <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded mb-2">
+                <i class="fa-solid fa-scale-balanced"></i>
+                <span>ຊັ່ງກິໂລ (PLU: ${p.plu_code || p.product_id})</span>
+              </div>
+            ` : ''}
+
+            ${p.next_expiry ? `
+              <div class="text-[10px] text-slate-400 flex items-center gap-1 mb-2">
+                <i class="fa-regular fa-calendar-xmark text-amber-500"></i>
+                <span>FEFO: ${p.next_expiry}</span>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="mt-2 space-y-1">
+            <span class="text-[10px] text-slate-400 block font-medium">ເລືອກໜ່ວຍຂາຍ:</span>
+            ${unitsHtml}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    /**
+     * BARCODE PROCESSING & DIGITAL WEIGHING SCALE DECODER
+     * Unified handler for both USB barcode scanner gun and Mobile Camera
+     */
+    function processBarcode(rawCode, isFromCamera = false) {
+      if (!rawCode) return { success: false };
+      rawCode = String(rawCode).trim();
+
+      // 1. Check for Digital Scale Barcode: 13 digits starting with '20'
+      // Format: 20 + PPPPP (5-digit PLU) + WWWWW (5-digit weight in grams) + C (Checksum)
+      if (rawCode.length === 13 && rawCode.startsWith('20')) {
+        const pluCode = rawCode.substring(2, 7);
+        const weightGrams = parseInt(rawCode.substring(7, 12), 10);
+        const weightKg = Number((weightGrams / 1000).toFixed(3));
+
+        const product = state.products.find(p => p.plu_code === pluCode);
+        if (product && product.units && product.units.length > 0) {
+          const unit = product.units[0];
+          addToCart({
+            barcode: rawCode,
+            product_id: product.product_id,
+            item_name: `${product.name_lo} (${weightKg} kg)`,
+            unit_name: 'ກິໂລ',
+            conversion_qty: unit.conversion_qty || 1,
+            qty_sold: weightKg,
+            unit_price: unit.selling_price,
+            is_weighable: true
+          });
+          playBeep('success');
+          return { success: true, itemName: product.name_lo };
+        }
+      }
+
+      // 2. Standard Barcode Lookup from Units
+      const unit = state.barcodeMap[rawCode];
+      if (unit) {
+        addItemToCartByUnit(rawCode);
+        playBeep('success');
+        return { success: true, itemName: unit.product_name };
+      }
+
+      // 3. Fallback: Search by Product ID or exact PLU
+      const prod = state.products.find(p => p.product_id === rawCode || p.plu_code === rawCode);
+      if (prod && prod.units && prod.units.length > 0) {
+        addItemToCartByUnit(prod.units[0].barcode);
+        playBeep('success');
+        return { success: true, itemName: prod.name_lo };
+      }
+
+      // Not found
+      playBeep('error');
+      if (!isFromCamera) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'ບໍ່ພົບບາໂຄ້ດ',
+          text: `ລະຫັດ "${rawCode}" ບໍ່ມີຢູ່ໃນລະບົບ`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+      return { success: false, itemName: rawCode };
+    }
+
+    function handleBarcodeSubmit() {
+      const input = document.getElementById('barcode-input');
+      const rawCode = input.value.trim();
+      if (!rawCode) return;
+      const res = processBarcode(rawCode, false);
+      if (res.success) {
+        input.value = '';
+        input.focus();
+      }
+    }
+
+    /**
+     * =========================================================================
+     * 📱 MOBILE / DESKTOP CAMERA BARCODE SCANNER CONTROLLER
+     * =========================================================================
+     */
+    let html5QrCode = null;
+    let cameraDevices = [];
+    let currentCameraIndex = 0;
+    let isTorchOn = false;
+    let lastScannedCode = null;
+    let lastScannedTime = 0;
+
+    /**
+     * Smart Click Handler for Barcode Scan Icon Button
+     * - On mobile inside Google Apps Script: triggers native phone camera directly (100% bypasses iframe block)
+     * - On PC or standalone: opens live camera scanner modal
+     */
+    function handleScanButtonClick() {
+      const isGoogleIframe = window.self !== window.top || 
+                             window.location.hostname.includes('googleusercontent.com') || 
+                             (document.referrer && document.referrer.includes('script.google.com'));
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isMobile && isGoogleIframe) {
+        // Mobile in Google Apps Script: open native camera directly for instant 1-tap scanning
+        triggerNativeCamera();
+      } else {
+        // Open live viewfinder modal
+        openMobileCameraScanner();
+      }
+    }
+
+    /**
+     * Trigger Native Camera via Hidden File Input
+     */
+    function triggerNativeCamera() {
+      const fileInput = document.getElementById('barcode-file-input');
+      if (fileInput) {
+        fileInput.click();
+      }
+    }
+
+    /**
+     * Handle Native Camera Photo Selection & Barcode Decoding
+     */
+    async function handleBarcodeFileSelected(input) {
+      if (!input.files || input.files.length === 0) return;
+      const file = input.files[0];
+
+      // Non-blocking SweetAlert loading indicator
+      Swal.fire({
+        title: 'ກຳລັງອ່ານບາໂຄ້ດ...',
+        html: `
+          <div class="py-3 flex flex-col items-center justify-center gap-2">
+            <i class="fa-solid fa-spinner fa-spin text-3xl text-indigo-500"></i>
+            <p class="text-xs text-slate-500 mt-1">ກະລຸນາລໍຖ້າຈັກໜ່ອຍ...</p>
+          </div>
+        `,
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      });
+
+      try {
+        // 1. Resize high-res smartphone photo (e.g. 12MP-48MP) to 1280px for instant sub-second decoding
+        const resizedFile = await resizeImageIfNeeded(file, 1280);
+
+        // 2. Ensure Html5Qrcode instance exists
+        if (!html5QrCode) {
+          html5QrCode = new Html5Qrcode("camera-reader");
+        }
+
+        let decodedText = null;
+        try {
+          decodedText = await html5QrCode.scanFile(resizedFile, false);
+        } catch (resizeErr) {
+          console.warn("Scan resized file failed, trying original file:", resizeErr);
+          // Fallback: try original file if resized didn't catch the code
+          decodedText = await html5QrCode.scanFile(file, false);
+        }
+
+        Swal.close();
+
+        if (decodedText) {
+          // Process barcode (auto resolve weight scale or regular product, add to cart, play beep)
+          const result = processBarcode(decodedText, true);
+
+          // Close modal if open
+          closeMobileCameraScanner();
+
+          if (result.success) {
+            Swal.fire({
+              icon: 'success',
+              title: 'ສະແກນສຳເລັດ!',
+              html: `<div class="text-sm font-semibold text-slate-800">${result.itemName}</div><div class="text-xs font-mono text-slate-500 mt-1">ບາໂຄ້ດ: ${decodedText}</div>`,
+              timer: 1600,
+              showConfirmButton: false,
+              toast: true,
+              position: 'top-end'
+            });
+          }
+        }
+      } catch (err) {
+        console.error('File barcode scan error:', err);
+        Swal.close();
+        Swal.fire({
+          icon: 'warning',
+          title: 'ບໍ່ສາມາດອ່ານບາໂຄ້ດໄດ້',
+          html: `
+            <div class="text-xs text-slate-600 leading-relaxed text-left space-y-1.5 p-1">
+              <p>• ກະລຸນາຖ່າຍຮູບໃຫ້ເຫັນເສັ້ນບາໂຄ້ດ<b>ຈະແຈ້ງ ແລະ ບໍ່ມົວ</b></p>
+              <p>• ຫຼີກລ່ຽງແສງສະທ້ອນ ຫຼື ບ່ອນມືດເກີນໄປ</p>
+              <p>• ຈໍ່ກ້ອງໃກ້ບາໂຄ້ດໃຫ້ພໍດີກອບຮູບ</p>
+            </div>
+          `,
+          confirmButtonText: '📸 ຖ່າຍໃໝ່ອີກຄັ້ງ',
+          confirmButtonColor: '#10b981',
+          showCancelButton: true,
+          cancelButtonText: 'ຍົກເລີກ'
+        }).then((res) => {
+          if (res.isConfirmed) {
+            triggerNativeCamera();
+          }
+        });
+      } finally {
+        // Reset file input value so user can scan again even with same photo
+        input.value = '';
+      }
+    }
+
+    /**
+     * Fast Canvas Image Resizer for Sub-second Barcode Recognition
+     */
+    function resizeImageIfNeeded(file, maxDimension = 1280) {
+      return new Promise((resolve) => {
+        if (!file.type || !file.type.startsWith('image/')) {
+          resolve(file);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            if (width <= maxDimension && height <= maxDimension) {
+              resolve(file);
+              return;
+            }
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob((blob) => {
+              if (!blob) {
+                resolve(file);
+                return;
+              }
+              const resizedFile = new File([blob], file.name || 'barcode.jpg', { type: 'image/jpeg' });
+              resolve(resizedFile);
+            }, 'image/jpeg', 0.88);
+          };
+          img.onerror = () => resolve(file);
+          img.src = e.target.result;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    /**
+     * Live Video Stream Camera Scanner Viewfinder
+     */
+    async function openMobileCameraScanner() {
+      const modal = document.getElementById('camera-scanner-modal');
+      const loading = document.getElementById('camera-loading');
+      const errorBox = document.getElementById('camera-error-box');
+      const switchBtn = document.getElementById('camera-switch-btn');
+      const torchBtn = document.getElementById('camera-torch-btn');
+      
+      modal.classList.remove('hidden');
+      loading.classList.remove('hidden');
+      if (errorBox) errorBox.classList.add('hidden');
+
+      // Wait a tick for modal DOM rendering to establish element dimensions
+      await new Promise(r => setTimeout(r, 100));
+
+      if (typeof Html5Qrcode === 'undefined') {
+        loading.classList.add('hidden');
+        showCameraError('ກຳລັງໂຫຼດລະບົບກ້ອງ... ກະລຸນາກວດສອບອິນເຕີເນັດ ຫຼື ລອງໃໝ່ອີກຄັ້ງ');
+        return;
+      }
+
+      // Check if browser supports mediaDevices
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        loading.classList.add('hidden');
+        showCameraError('Browser ນີ້ບໍ່ຮອງຮັບ Live Camera Stream (ກະລຸນາກົດປຸ່ມສີຂຽວເພື່ອຖ່າຍຮູບສະແກນ)');
+        return;
+      }
+
+      try {
+        // Clean up any previous instance cleanly
+        if (html5QrCode) {
+          try {
+            if (html5QrCode.isScanning) {
+              await html5QrCode.stop();
+            }
+            await html5QrCode.clear();
+          } catch(e) {}
+        }
+
+        // Check if running on insecure file:// protocol
+        if (window.location.protocol === 'file:') {
+          loading.classList.add('hidden');
+          showCameraError('Browser ບລັອກກ້ອງເທິງ file:// (ເປີດໄຟລ໌ໂດຍກົງ). ກະລຸນາເປີດຜ່ານ http://localhost:8089 ຫຼື Google Apps Script Web App (HTTPS).');
+          const errorMsg = document.getElementById('camera-error-msg');
+          if (errorMsg) {
+            errorMsg.innerHTML = `Browser ບລັອກກ້ອງເທິງ file:// ເພື່ອຄວາມປອດໄພ.<br><br>
+              <a href="http://localhost:8089" target="_blank" class="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition">
+                👉 ກົດເປີດຜ່ານ http://localhost:8089
+              </a>`;
+          }
+          return;
+        }
+
+        const readerDiv = document.getElementById('camera-reader');
+        if (readerDiv) readerDiv.innerHTML = '';
+
+        const qrConfig = {
+          fps: 15,
+          qrbox: { width: 260, height: 200 }
+        };
+
+        html5QrCode = new Html5Qrcode("camera-reader");
+
+        // Attempt 1: Query camera devices (works best on PC Chrome & modern mobile)
+        let started = false;
+        try {
+          cameraDevices = await Html5Qrcode.getCameras();
+          if (cameraDevices && cameraDevices.length > 0) {
+            // Find rear/environment camera if available, or first camera on PC
+            let selectedCam = cameraDevices.find(d => 
+              d.label.toLowerCase().includes('back') || 
+              d.label.toLowerCase().includes('rear') || 
+              d.label.toLowerCase().includes('environment')
+            ) || cameraDevices[cameraDevices.length - 1];
+
+            await html5QrCode.start(
+              selectedCam.id,
+              qrConfig,
+              onBarcodeDecoded,
+              () => {}
+            );
+            started = true;
+            if (cameraDevices.length > 1) {
+              switchBtn.classList.remove('hidden');
+            } else {
+              switchBtn.classList.add('hidden');
+            }
+          }
+        } catch(camListErr) {
+          console.warn("Could not enumerate cameras, falling back to facingMode:", camListErr);
+        }
+
+        // Attempt 2: Try facingMode environment
+        if (!started) {
+          try {
+            await html5QrCode.start(
+              { facingMode: "environment" },
+              qrConfig,
+              onBarcodeDecoded,
+              () => {}
+            );
+            started = true;
+          } catch (envErr) {
+            console.warn("Environment camera not available, attempting user camera:", envErr);
+          }
+        }
+
+        // Attempt 3: Try facingMode user (e.g. PC webcam)
+        if (!started) {
+          await html5QrCode.start(
+            { facingMode: "user" },
+            qrConfig,
+            onBarcodeDecoded,
+            () => {}
+          );
+          started = true;
+        }
+
+        loading.classList.add('hidden');
+        checkTorchSupport();
+
+      } catch (err) {
+        console.error('Camera live start error:', err);
+        loading.classList.add('hidden');
+        let errDetail = (err && (err.message || err.name || String(err))) || '';
+        showCameraError(errDetail || 'ບໍ່ສາມາດເປີດ Live Camera ໄດ້');
+      }
+    }
+
+    async function closeMobileCameraScanner() {
+      const modal = document.getElementById('camera-scanner-modal');
+      modal.classList.add('hidden');
+
+      if (html5QrCode) {
+        try {
+          if (html5QrCode.isScanning) {
+            await html5QrCode.stop();
+          }
+          await html5QrCode.clear();
+        } catch (err) {
+          console.warn('Error stopping camera:', err);
+        }
+      }
+    }
+
+    function showCameraError(msg) {
+      const errorBox = document.getElementById('camera-error-box');
+      const errorMsg = document.getElementById('camera-error-msg');
+      if (errorBox && errorMsg) {
+        const isGoogleIframe = window.self !== window.top || 
+                               window.location.hostname.includes('googleusercontent.com') || 
+                               (document.referrer && document.referrer.includes('script.google.com'));
+        if (isGoogleIframe) {
+          errorMsg.innerHTML = `
+            <span class="text-amber-300 font-semibold">Google Apps Script ບລັອກ Live Camera ໃນ Iframe</span><br>
+            ກະລຸນາກົດປຸ່ມສີຂຽວດັ່ງລຸ່ມນີ້ ເພື່ອເປີດກ້ອງມືຖືຖ່າຍສະແກນໄດ້ 100%!
+          `;
+        } else {
+          errorMsg.innerText = 'ບໍ່ສາມາດເປີດ Live Camera ໄດ້ (ກວດສອບສິດ Camera Permission ຫຼື ໃຊ້ອຸປະກອນກ້ອງ)';
+        }
+        errorBox.classList.remove('hidden');
+      }
+    }
+
+    function retryLiveCamera() {
+      const errorBox = document.getElementById('camera-error-box');
+      if (errorBox) errorBox.classList.add('hidden');
+      openMobileCameraScanner();
+    }
+
+    function checkTorchSupport() {
+      const torchBtn = document.getElementById('camera-torch-btn');
+      try {
+        const track = html5QrCode.getRunningTrackCameraCapabilities();
+        if (track && track.torchFeature().isSupported()) {
+          torchBtn.classList.remove('hidden');
+        } else {
+          torchBtn.classList.add('hidden');
+        }
+      } catch (e) {
+        torchBtn.classList.add('hidden');
+      }
+    }
+
+    async function toggleCameraTorch() {
+      if (!html5QrCode || !html5QrCode.isScanning) return;
+      try {
+        const track = html5QrCode.getRunningTrackCameraCapabilities();
+        if (track && track.torchFeature().isSupported()) {
+          isTorchOn = !isTorchOn;
+          await track.torchFeature().apply(isTorchOn);
+          const torchBtn = document.getElementById('camera-torch-btn');
+          torchBtn.className = isTorchOn 
+            ? 'px-2.5 py-1.5 rounded-lg bg-amber-500 text-slate-900 text-xs flex items-center gap-1.5 font-bold transition'
+            : 'px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs flex items-center gap-1.5 transition';
+        }
+      } catch (e) {
+        console.warn('Torch toggle error', e);
+      }
+    }
+
+    async function switchCamera() {
+      if (!cameraDevices || cameraDevices.length < 2) return;
+      currentCameraIndex = (currentCameraIndex + 1) % cameraDevices.length;
+      const nextCamId = cameraDevices[currentCameraIndex].id;
+      await startCameraStream(nextCamId);
+    }
+
+    async function closeMobileCameraScanner() {
+      const modal = document.getElementById('camera-scanner-modal');
+      modal.classList.add('hidden');
+
+      if (html5QrCode) {
+        try {
+          if (html5QrCode.isScanning) {
+            await html5QrCode.stop();
+          }
+          await html5QrCode.clear();
+        } catch (err) {
+          console.warn('Error stopping camera:', err);
+        }
+      }
+    }
+
+    function onBarcodeDecoded(decodedText, decodedResult) {
+      const now = Date.now();
+      // Debounce: prevent duplicate scan within 1.5s for the same code
+      if (decodedText === lastScannedCode && (now - lastScannedTime) < 1500) {
+        return;
+      }
+      lastScannedCode = decodedText;
+      lastScannedTime = now;
+
+      // Haptic vibration feedback on mobile phone
+      if (navigator.vibrate) {
+        try { navigator.vibrate(80); } catch(e) {}
+      }
+
+      // Process barcode
+      const result = processBarcode(decodedText, true);
+
+      // Show on-screen feedback toast in the scanner viewport
+      showScanFeedbackToast(result.success ? `✅ ຍິງສຳເລັດ: ${result.itemName} (+1)` : `⚠️ ບໍ່ພົບສິນຄ້າ: ${decodedText}`);
+
+      const isContinuous = document.getElementById('continuous-scan-toggle').checked;
+      if (!isContinuous && result.success) {
+        setTimeout(() => {
+          closeMobileCameraScanner();
+        }, 500);
+      }
+    }
+
+    function showScanFeedbackToast(text) {
+      const toast = document.getElementById('scan-feedback-toast');
+      const textEl = document.getElementById('scan-feedback-text');
+      textEl.innerText = text;
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 1800);
+    }
+
+    function clearBarcodeInput() {
+      const input = document.getElementById('barcode-input');
+      input.value = '';
+      input.focus();
+    }
+
+    function addItemToCartByUnit(barcode) {
+      const unit = state.barcodeMap[barcode];
+      if (!unit) return;
+
+      const existingIndex = state.cart.findIndex(item => item.barcode === barcode);
+      if (existingIndex > -1) {
+        state.cart[existingIndex].qty_sold += 1;
+        state.cart[existingIndex].subtotal = state.cart[existingIndex].qty_sold * state.cart[existingIndex].unit_price;
+      } else {
+        state.cart.push({
+          barcode: unit.barcode,
+          product_id: unit.product_id,
+          item_name: `${unit.product_name} (${unit.unit_name})`,
+          unit_name: unit.unit_name,
+          conversion_qty: unit.conversion_qty,
+          qty_sold: 1,
+          unit_price: unit.selling_price,
+          subtotal: unit.selling_price,
+          is_weighable: unit.is_weighable || false
+        });
+      }
+
+      playBeep('success');
+      renderCart();
+    }
+
+    function addToCart(cartItem) {
+      cartItem.subtotal = Math.round(cartItem.qty_sold * cartItem.unit_price);
+      state.cart.push(cartItem);
+      renderCart();
+    }
+
+    /**
+     * CART MANAGEMENT
+     */
+    function renderCart() {
+      const container = document.getElementById('cart-items-container');
+      const emptyState = document.getElementById('empty-cart-state');
+      const countEl = document.getElementById('cart-item-count');
+      const subtotalEl = document.getElementById('cart-subtotal');
+      const discountEl = document.getElementById('cart-discount');
+      const grandTotalEl = document.getElementById('cart-grand-total');
+      const btnCash = document.getElementById('btn-pay-cash');
+      const btnQr = document.getElementById('btn-pay-qr');
+
+      countEl.innerText = state.cart.length;
+
+      if (state.cart.length === 0) {
+        container.innerHTML = '';
+        container.appendChild(emptyState);
+        emptyState.classList.remove('hidden');
+
+        subtotalEl.innerText = '0 ₭';
+        discountEl.innerText = '- 0 ₭';
+        grandTotalEl.innerText = '0 ₭';
+        btnCash.disabled = true;
+        btnQr.disabled = true;
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      container.innerHTML = '';
+
+      let subtotal = 0;
+
+      state.cart.forEach((item, index) => {
+        subtotal += item.subtotal;
+
+        // Find available units for this product so user can switch units directly in the cart
+        const product = state.products.find(p => p.product_id === item.product_id);
+        const availableUnits = product ? product.units : [];
+
+        const itemEl = document.createElement('div');
+        itemEl.className = 'p-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-sm space-y-2';
+
+        itemEl.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex-1">
+              <h4 class="font-bold text-xs text-slate-800 leading-snug">${item.item_name}</h4>
+              <span class="text-[10px] font-mono text-slate-400">Barcode: ${item.barcode}</span>
+            </div>
+            <button onclick="removeFromCart(${index})" class="text-slate-300 hover:text-rose-500 p-1 transition" title="ລຶບ">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+            <!-- Unit Selector -->
+            <div class="flex items-center gap-1">
+              <select onchange="changeItemUnit(${index}, this.value)" class="text-[11px] font-medium py-1 px-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-blue-500">
+                ${availableUnits.map(u => `
+                  <option value="${u.barcode}" ${u.barcode === item.barcode ? 'selected' : ''}>${u.unit_name}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <!-- Qty Stepper -->
+            <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+              <button onclick="updateQty(${index}, -1)" class="w-6 h-6 flex items-center justify-center rounded-md bg-white text-slate-700 hover:bg-slate-200 active:scale-95 text-xs font-bold shadow-xs">
+                -
+              </button>
+              <input 
+                type="number" 
+                step="${item.is_weighable ? '0.05' : '1'}" 
+                min="0.01" 
+                value="${item.qty_sold}" 
+                onchange="setManualQty(${index}, this.value)" 
+                class="w-12 text-center text-xs font-bold bg-transparent focus:outline-none font-mono"
+              >
+              <button onclick="updateQty(${index}, 1)" class="w-6 h-6 flex items-center justify-center rounded-md bg-white text-slate-700 hover:bg-slate-200 active:scale-95 text-xs font-bold shadow-xs">
+                +
+              </button>
+            </div>
+
+            <!-- Item Total -->
+            <div class="text-right">
+              <span class="text-xs font-mono font-bold text-slate-900">${formatMoney(item.subtotal)}</span>
+            </div>
+          </div>
+        `;
+
+        container.appendChild(itemEl);
+      });
+
+      const grandTotal = Math.max(0, subtotal - state.discount);
+
+      subtotalEl.innerText = formatMoney(subtotal);
+      discountEl.innerText = '- ' + formatMoney(state.discount);
+      grandTotalEl.innerText = formatMoney(grandTotal);
+
+      btnCash.disabled = false;
+      btnQr.disabled = false;
+    }
+
+    function updateQty(index, change) {
+      const item = state.cart[index];
+      if (!item) return;
+
+      const step = item.is_weighable ? 0.1 : 1;
+      const newQty = item.qty_sold + (change * step);
+
+      if (newQty <= 0) {
+        removeFromCart(index);
+      } else {
+        item.qty_sold = Number(newQty.toFixed(3));
+        item.subtotal = Math.round(item.qty_sold * item.unit_price);
+        renderCart();
+      }
+    }
+
+    function setManualQty(index, val) {
+      const item = state.cart[index];
+      if (!item) return;
+      const qty = parseFloat(val);
+      if (isNaN(qty) || qty <= 0) {
+        removeFromCart(index);
+      } else {
+        item.qty_sold = Number(qty.toFixed(3));
+        item.subtotal = Math.round(item.qty_sold * item.unit_price);
+        renderCart();
+      }
+    }
+
+    function changeItemUnit(cartIndex, newBarcode) {
+      const unit = state.barcodeMap[newBarcode];
+      if (!unit) return;
+
+      const item = state.cart[cartIndex];
+      item.barcode = unit.barcode;
+      item.unit_name = unit.unit_name;
+      item.conversion_qty = unit.conversion_qty;
+      item.unit_price = unit.selling_price;
+      item.item_name = `${unit.product_name} (${unit.unit_name})`;
+      item.subtotal = Math.round(item.qty_sold * item.unit_price);
+
+      renderCart();
+    }
+
+    function removeFromCart(index) {
+      state.cart.splice(index, 1);
+      renderCart();
+    }
+
+    function confirmClearCart() {
+      if (state.cart.length === 0) return;
+      Swal.fire({
+        title: 'ລຶບກະຕ່າສິນຄ້າ?',
+        text: 'ທ່ານຕ້ອງການລຶບລາຍການສິນຄ້າທັງໝົດອອກຈາກກະຕ່າແທ້ບໍ່?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ລຶບທັງໝົດ',
+        cancelButtonText: 'ຍົກເລີກ'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          state.cart = [];
+          state.discount = 0;
+          renderCart();
+        }
+      });
+    }
+
+    function promptDiscount() {
+      Swal.fire({
+        title: 'ກຳນົດສ່ວນຫຼຸດ (LAK)',
+        input: 'number',
+        inputValue: state.discount,
+        showCancelButton: true,
+        confirmButtonText: 'ຕົກລົງ',
+        cancelButtonText: 'ຍົກເລີກ',
+        inputValidator: (value) => {
+          if (value < 0) return 'ສ່ວນຫຼຸດຕ້ອງບໍ່ຕິດລົບ!';
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          state.discount = Number(result.value || 0);
+          renderCart();
+        }
+      });
+    }
+
+    /**
+     * PAYMENT & CHECKOUT
+     */
+    function openPaymentModal(type = 'CASH') {
+      if (state.cart.length === 0) return;
+
+      state.activePaymentType = type;
+      const modal = document.getElementById('payment-modal');
+      const modalTitle = document.getElementById('modal-pay-title');
+      const modalIcon = document.getElementById('modal-pay-icon');
+      const cashSection = document.getElementById('cash-payment-section');
+      const qrSection = document.getElementById('qr-payment-section');
+      const subtotal = state.cart.reduce((s, i) => s + i.subtotal, 0);
+      const grandTotal = Math.max(0, subtotal - state.discount);
+
+      document.getElementById('modal-grand-total').innerText = formatMoney(grandTotal);
+      document.getElementById('pay-total-items').innerText = state.cart.length;
+
+      if (type === 'CASH') {
+        modalTitle.innerText = 'ຊຳລະເງິນສົດ (Cash Payment)';
+        modalIcon.className = 'fa-solid fa-money-bill-wave text-emerald-400 text-lg';
+        cashSection.classList.remove('hidden');
+        qrSection.classList.add('hidden');
+        document.getElementById('cash-received-input').value = grandTotal;
+        calcChange();
+        setTimeout(() => document.getElementById('cash-received-input').focus(), 150);
+      } else {
+        modalTitle.innerText = 'ຊຳລະຜ່ານ BCEL One / LAO QR';
+        modalIcon.className = 'fa-solid fa-qrcode text-indigo-400 text-lg';
+        cashSection.classList.add('hidden');
+        qrSection.classList.remove('hidden');
+        qrSection.classList.add('flex');
+        // Update Mock QR code with total
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=NNPOS-PAY-${grandTotal}-LAK`;
+        document.getElementById('qr-image').src = qrUrl;
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closePaymentModal() {
+      document.getElementById('payment-modal').classList.add('hidden');
+    }
+
+    function addCash(amount) {
+      const input = document.getElementById('cash-received-input');
+      const current = parseFloat(input.value) || 0;
+      input.value = current + amount;
+      calcChange();
+    }
+
+    function setExactCash() {
+      const subtotal = state.cart.reduce((s, i) => s + i.subtotal, 0);
+      const grandTotal = Math.max(0, subtotal - state.discount);
+      document.getElementById('cash-received-input').value = grandTotal;
+      calcChange();
+    }
+
+    function calcChange() {
+      const subtotal = state.cart.reduce((s, i) => s + i.subtotal, 0);
+      const grandTotal = Math.max(0, subtotal - state.discount);
+      const received = parseFloat(document.getElementById('cash-received-input').value) || 0;
+      const change = received - grandTotal;
+
+      const changeDisplay = document.getElementById('change-amount-display');
+      const statusMsg = document.getElementById('change-status-msg');
+      const confirmBtn = document.getElementById('btn-confirm-checkout');
+
+      if (change < 0) {
+        changeDisplay.innerText = formatMoney(0);
+        changeDisplay.className = 'text-xl font-bold font-mono text-rose-600';
+        statusMsg.classList.remove('hidden');
+        confirmBtn.disabled = true;
+      } else {
+        changeDisplay.innerText = formatMoney(change);
+        changeDisplay.className = 'text-xl font-bold font-mono text-emerald-600';
+        statusMsg.classList.add('hidden');
+        confirmBtn.disabled = false;
+      }
+    }
+
+    function submitCheckout() {
+      const subtotal = state.cart.reduce((s, i) => s + i.subtotal, 0);
+      const grandTotal = Math.max(0, subtotal - state.discount);
+      let received = grandTotal;
+      let change = 0;
+
+      if (state.activePaymentType === 'CASH') {
+        received = parseFloat(document.getElementById('cash-received-input').value) || 0;
+        if (received < grandTotal) {
+          Swal.fire('ຈຳນວນເງິນບໍ່ພໍ', 'ກະລຸນາຮັບເງິນໃຫ້ຄົບຕາມຍອດບິນ', 'warning');
+          return;
+        }
+        change = received - grandTotal;
+      }
+
+      const saleData = {
+        cashier: document.getElementById('cashier-name').innerText,
+        payment_type: state.activePaymentType,
+        total_lak: grandTotal,
+        received_lak: received,
+        change_lak: change,
+        items: state.cart.map(i => ({
+          barcode: i.barcode,
+          product_id: i.product_id,
+          item_name: i.item_name,
+          unit_name: i.unit_name,
+          conversion_qty: i.conversion_qty,
+          qty_sold: i.qty_sold,
+          unit_price: i.unit_price,
+          subtotal: i.subtotal
+        }))
+      };
+
+      // Show processing spinner
+      Swal.fire({
+        title: 'ກຳລັງບັນທຶກການຂາຍ...',
+        text: 'ລະບົບກຳລັງຕັດສະຕ໋ອກ FEFO ແລະ ບັນທຶກໃສ່ Google Sheets',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      if (state.isAppsScript) {
+        google.script.run
+          .withSuccessHandler((result) => onSaleSuccess(result, saleData))
+          .withFailureHandler(onSaleError)
+          .recordSale(saleData);
+      } else if (GAS_API_URL) {
+        fetch(GAS_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'recordSale', data: saleData })
+        })
+        .then(r => r.json())
+        .then(json => {
+          if (json.success && json.data) {
+            onSaleSuccess(json.data, saleData);
+          } else {
+            onSaleError({ message: json.error || 'ບັນທຶກການຂາຍບໍ່ສຳເລັດ' });
+          }
+        })
+        .catch(err => onSaleError({ message: err.message || 'Network error' }));
+      } else {
+        // Mock success for local preview
+        setTimeout(() => {
+          const fakeResult = {
+            success: true,
+            receipt_no: 'INV-' + ('00000' + Math.floor(Math.random() * 90000 + 10000)).slice(-5),
+            sale_datetime: new Date().toISOString().replace('T', ' ').substring(0, 19),
+            total_lak: grandTotal,
+            received_lak: received,
+            change_lak: change,
+            payment_type: state.activePaymentType
+          };
+          onSaleSuccess(fakeResult, saleData);
+        }, 800);
+      }
+    }
+
+    function onSaleSuccess(result, saleData) {
+      Swal.close();
+      closePaymentModal();
+      playBeep('cash');
+
+      // Populate thermal receipt HTML
+      document.getElementById('print-receipt-no').innerText = result.receipt_no;
+      document.getElementById('print-datetime').innerText = result.sale_datetime;
+      document.getElementById('print-cashier').innerText = saleData.cashier;
+      document.getElementById('print-pay-type').innerText = saleData.payment_type;
+      
+      const subtotal = saleData.items.reduce((s, i) => s + i.subtotal, 0);
+      document.getElementById('print-subtotal').innerText = formatMoney(subtotal);
+      document.getElementById('print-discount').innerText = formatMoney(state.discount);
+      document.getElementById('print-grand-total').innerText = formatMoney(result.total_lak);
+      document.getElementById('print-received').innerText = formatMoney(result.received_lak);
+      document.getElementById('print-change').innerText = formatMoney(result.change_lak);
+
+      const itemsBody = document.getElementById('print-items-body');
+      itemsBody.innerHTML = saleData.items.map(item => `
+        <tr>
+          <td style="padding: 2px 0;">${item.item_name}</td>
+          <td style="text-align: center; padding: 2px 0;">${item.qty_sold}</td>
+          <td style="text-align: right; padding: 2px 0;">${formatMoney(item.unit_price)}</td>
+          <td style="text-align: right; padding: 2px 0;">${formatMoney(item.subtotal)}</td>
+        </tr>
+      `).join('');
+
+      // SweetAlert Success with Change display & Print button
+      Swal.fire({
+        icon: 'success',
+        title: 'ຊຳລະເງິນສຳເລັດ!',
+        html: `
+          <div class="text-center space-y-2">
+            <p class="text-sm text-slate-500">ເລກບິນ: <strong class="text-slate-800">${result.receipt_no}</strong></p>
+            <div class="py-3 px-4 bg-emerald-50 rounded-xl border border-emerald-200">
+              <span class="text-xs text-emerald-700 font-semibold">ເງິນທອນ:</span>
+              <p class="text-3xl font-mono font-bold text-emerald-600">${formatMoney(result.change_lak)}</p>
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fa-solid fa-print"></i> ພິມໃບບິນ 80mm',
+        cancelButtonText: 'ຂາຍລາຍການຕໍ່ໄປ',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#64748b'
+      }).then((res) => {
+        if (res.isConfirmed) {
+          window.print();
+        }
+      });
+
+      // Clear cart for next customer & refresh catalog stock
+      state.cart = [];
+      state.discount = 0;
+      renderCart();
+      reloadCatalog(false);
+    }
+
+    function onSaleError(err) {
+      Swal.fire('ບັນທຶກບໍ່ສຳເລັດ', err.message || 'ເກີດຂໍ້ຜິດພາດໃນການບັນທຶກບິນ', 'error');
+    }
+
+    /**
+     * RESTOCK MODAL
+     */
+    function openRestockModal() {
+      document.getElementById('restock-modal').classList.remove('hidden');
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('restock-expiry-date').min = today;
+    }
+
+    function closeRestockModal() {
+      document.getElementById('restock-modal').classList.add('hidden');
+    }
+
+    function populateRestockSelect() {
+      const select = document.getElementById('restock-product-id');
+      select.innerHTML = state.products.map(p => `
+        <option value="${p.product_id}">${p.name_lo} (${p.product_id})</option>
+      `).join('');
+    }
+
+    function handleRestockSubmit(e) {
+      e.preventDefault();
+      const batchData = {
+        product_id: document.getElementById('restock-product-id').value,
+        batch_id: document.getElementById('restock-batch-id').value,
+        expiry_date: document.getElementById('restock-expiry-date').value,
+        qty: parseFloat(document.getElementById('restock-qty').value),
+        cost_per_unit: parseFloat(document.getElementById('restock-cost').value)
+      };
+
+      Swal.fire({
+        title: 'ກຳລັງບັນທຶກເຂົ້າສາງ...',
+        didOpen: () => Swal.showLoading()
+      });
+
+      if (state.isAppsScript) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            Swal.fire('ສຳເລັດ', res.message, 'success');
+            closeRestockModal();
+            initCatalogData();
+          })
+          .withFailureHandler(err => Swal.fire('ຂໍ້ຜິດພາດ', err.message, 'error'))
+          .restockBatch(batchData);
+      } else if (GAS_API_URL) {
+        fetch(GAS_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'restockBatch', data: batchData })
+        })
+        .then(r => r.json())
+        .then(json => {
+          if (json.success) {
+            Swal.fire('ສຳເລັດ', (json.data && json.data.message) || 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍ', 'success');
+            closeRestockModal();
+            initCatalogData();
+          } else {
+            Swal.fire('ຂໍ້ຜິດພາດ', json.error || 'ບັນທຶກບໍ່ສຳເລັດ', 'error');
+          }
+        })
+        .catch(err => Swal.fire('ຂໍ້ຜິດພາດ', err.message, 'error'));
+      } else {
+        setTimeout(() => {
+          Swal.fire('ສຳເລັດ', 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍແລ້ວ (ໂໝດທົດລອງ)', 'success');
+          closeRestockModal();
+        }, 500);
+      }
+    }
+
+    /**
+     * DAILY SUMMARY REPORT MODAL
+     */
+    function openDailyReportModal() {
+      const modal = document.getElementById('report-modal');
+      const content = document.getElementById('report-modal-content');
+      modal.classList.remove('hidden');
+
+      if (state.isAppsScript) {
+        google.script.run
+          .withSuccessHandler(renderReportSummary)
+          .withFailureHandler(err => {
+            content.innerHTML = `<p class="text-rose-500 text-xs text-center">${err.message}</p>`;
+          })
+          .getDailySalesSummary();
+      } else if (GAS_API_URL) {
+        content.innerHTML = '<div class="py-8 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin text-2xl text-blue-500"></i><p class="text-xs mt-2">ກຳລັງດຶງລາຍງານຈາກ Google Sheets...</p></div>';
+        fetch(`${GAS_API_URL}?action=getDailySalesSummary`)
+          .then(r => r.json())
+          .then(json => {
+            if (json.success && json.data) {
+              renderReportSummary(json.data);
+            } else {
+              content.innerHTML = `<p class="text-rose-500 text-xs text-center">${json.error || 'ບໍ່ສາມາດດຶງລາຍງານໄດ້'}</p>`;
+            }
+          })
+          .catch(err => {
+            content.innerHTML = `<p class="text-rose-500 text-xs text-center">${err.message}</p>`;
+          });
+      } else {
+        setTimeout(() => {
+          renderReportSummary({
+            date: new Date().toISOString().split('T')[0],
+            orderCount: 12,
+            totalSales: 2450000,
+            totalCost: 1720000,
+            grossProfit: 730000,
+            paymentMethods: { CASH: 1800000, BCEL_ONE: 650000 },
+            topItems: [
+              { name: 'ເບຍລາວ (ກະປ໋ອງ)', qty: 48, revenue: 720000 },
+              { name: 'ນ້ຳດື່ມ ຫົວເສືອ', qty: 36, revenue: 180000 },
+              { name: 'ຊີ້ນໝູສາມຊັ້ນ', qty: 4.5, revenue: 427500 }
+            ]
+          });
+        }, 300);
+      }
+    }
+
+    function renderReportSummary(report) {
+      const content = document.getElementById('report-modal-content');
+      content.innerHTML = `
+        <div class="grid grid-cols-2 gap-2.5">
+          <div class="p-3 bg-blue-50 rounded-xl border border-blue-100">
+            <span class="text-[11px] text-blue-700 font-medium">ຍອດຂາຍລວມມື້ນີ້</span>
+            <p class="text-xl font-bold font-mono text-blue-800 mt-1">${formatMoney(report.totalSales)}</p>
+          </div>
+          <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+            <span class="text-[11px] text-emerald-700 font-medium">ກຳໄລຂັ້ນຕົ້ນ</span>
+            <p class="text-xl font-bold font-mono text-emerald-800 mt-1">${formatMoney(report.grossProfit)}</p>
+          </div>
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <span class="text-[11px] text-slate-500 font-medium">ຈຳນວນບິນທັງໝົດ</span>
+            <p class="text-lg font-bold font-mono text-slate-800 mt-1">${report.orderCount} ບິນ</p>
+          </div>
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <span class="text-[11px] text-slate-500 font-medium">ເງິນສົດ / ໂອນ</span>
+            <p class="text-xs font-mono font-bold text-slate-700 mt-1">
+              💵 ${formatMoney(report.paymentMethods.CASH || 0)}<br>
+              📱 ${formatMoney((report.paymentMethods.BCEL_ONE || 0) + (report.paymentMethods.TRANSFER || 0))}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-bold text-slate-700 mb-2">🏆 5 ສິນຄ້າຂາຍດີທີ່ສຸດ</h4>
+          <div class="space-y-1.5">
+            ${report.topItems && report.topItems.length > 0 ? report.topItems.map((item, idx) => `
+              <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-50 border border-slate-100">
+                <span class="font-medium text-slate-800 truncate">${idx + 1}. ${item.name}</span>
+                <div class="text-right shrink-0 ml-2">
+                  <span class="font-bold text-slate-900">${item.qty}</span>
+                  <span class="text-[10px] text-slate-400 block">${formatMoney(item.revenue)}</span>
+                </div>
+              </div>
+            `).join('') : '<p class="text-xs text-slate-400 text-center py-2">ຍັງບໍ່ມີຂໍ້ມູນການຂາຍ</p>'}
+          </div>
+        </div>
+      `;
+    }
+
+    function closeReportModal() {
+      document.getElementById('report-modal').classList.add('hidden');
+    }
+
+    /**
+     * UTILITY FUNCTIONS
+     */
+    function formatMoney(amount) {
+      return Number(amount || 0).toLocaleString('en-US') + ' ₭';
+    }
+  </script>
+</body>
+</html>
