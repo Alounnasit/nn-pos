@@ -279,38 +279,39 @@ function getPOSInitialData() {
   const ss = getSpreadsheet();
   
   // 1. ດຶງ Products
-  const shProd = ss.getSheetByName(SHEETS.PRODUCTS);
-  if (!shProd) return { error: 'ບໍ່ພົບ Tab Products ກະລຸນາກົດ Setup Database ກ່ອນ' };
-  const prodData = shProd.getDataRange().getValues();
-  if (prodData.length <= 1) return { products: [], units: [] };
-
+  let shProd = ss.getSheetByName(SHEETS.PRODUCTS);
+  if (!shProd) shProd = ss.insertSheet(SHEETS.PRODUCTS);
+  
   const productsMap = {};
   const categoriesSet = new Set();
 
-  for (let i = 1; i < prodData.length; i++) {
-    const row = prodData[i];
-    const pid = String(row[0]).trim();
-    if (!pid) continue;
-    const cat = String(row[2] || 'ທົ່ວໄປ').trim();
-    categoriesSet.add(cat);
-    
-    productsMap[pid] = {
-      product_id: pid,
-      name_lo: String(row[1] || ''),
-      category: cat,
-      base_uom: String(row[3] || 'ອັນ'),
-      is_weighable: Boolean(row[4] === true || String(row[4]).toLowerCase() === 'true'),
-      plu_code: String(row[5] || '').trim(),
-      min_stock: Number(row[6] || 0),
-      total_stock: 0,
-      next_expiry: null,
-      units: []
-    };
+  if (shProd.getLastRow() > 1) {
+    const prodData = shProd.getDataRange().getValues();
+    for (let i = 1; i < prodData.length; i++) {
+      const row = prodData[i];
+      const pid = String(row[0]).trim();
+      if (!pid) continue;
+      const cat = String(row[2] || 'ທົ່ວໄປ').trim();
+      categoriesSet.add(cat);
+      
+      productsMap[pid] = {
+        product_id: pid,
+        name_lo: String(row[1] || ('ສິນຄ້າ ' + pid)),
+        category: cat,
+        base_uom: String(row[3] || 'ອັນ'),
+        is_weighable: Boolean(row[4] === true || String(row[4]).toLowerCase() === 'true'),
+        plu_code: String(row[5] || '').trim(),
+        min_stock: Number(row[6] || 0),
+        total_stock: 0,
+        next_expiry: null,
+        units: []
+      };
+    }
   }
 
-  // 2. ດຶງ Inventory Batches ເພື່ອຄິດໄລ່ຍອດສະຕ໋ອກລວມ & ວັນໝົດອາຍຸໃກ້ສຸດ
+  // 2. ດຶງ Inventory Batches ເພື່ອຄິດໄລ່ຍອດສະຕ໋ອກລວມ & ວັນໝົດອາຍຸໃກ້ສຸດ (ພ້ອມ Auto-heal ສິນຄ້າທີ່ຍັງບໍ່ທັນມີໃນ Tab Products)
   const shBatches = ss.getSheetByName(SHEETS.INVENTORY_BATCHES);
-  if (shBatches) {
+  if (shBatches && shBatches.getLastRow() > 1) {
     const batchData = shBatches.getDataRange().getValues();
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -321,7 +322,29 @@ function getPOSInitialData() {
       const expStr = bRow[2];
       const qty = Number(bRow[4] || 0);
 
-      if (productsMap[pid] && qty > 0) {
+      if (!pid) continue;
+
+      // ຖ້າພົບ product_id ໃນ Inventory_Batches ແຕ່ຍັງບໍ່ມີໃນ Tab Products ໃຫ້ສ້າງອັດຕະໂນມັດ
+      if (!productsMap[pid]) {
+        productsMap[pid] = {
+          product_id: pid,
+          name_lo: 'ສິນຄ້າ ' + pid,
+          category: 'ທົ່ວໄປ',
+          base_uom: 'ອັນ',
+          is_weighable: false,
+          plu_code: '',
+          min_stock: 10,
+          total_stock: 0,
+          next_expiry: null,
+          units: []
+        };
+        categoriesSet.add('ທົ່ວໄປ');
+        try {
+          shProd.appendRow([pid, 'ສິນຄ້າ ' + pid, 'ທົ່ວໄປ', 'ອັນ', false, '', 10]);
+        } catch (e) {}
+      }
+
+      if (qty > 0) {
         productsMap[pid].total_stock += qty;
         
         let expDate = null;
@@ -341,22 +364,41 @@ function getPOSInitialData() {
     }
   }
 
-  // 3. ດຶງ Product_Units
+  // 3. ດຶງ Product_Units (ພ້ອມ Auto-heal ສິນຄ້າທີ່ຍັງບໍ່ທັນມີໃນ Tab Products)
   const shUnits = ss.getSheetByName(SHEETS.PRODUCT_UNITS);
   const unitsList = [];
   const barcodeMap = {};
 
-  if (shUnits) {
+  if (shUnits && shUnits.getLastRow() > 1) {
     const unitData = shUnits.getDataRange().getValues();
     for (let i = 1; i < unitData.length; i++) {
       const uRow = unitData[i];
       const barcode = String(uRow[0]).trim();
       const pid = String(uRow[1]).trim();
-      const unitName = String(uRow[2] || '');
+      const unitName = String(uRow[2] || 'ອັນ');
       const convQty = Number(uRow[3] || 1);
       const price = Number(uRow[4] || 0);
 
-      if (!barcode || !productsMap[pid]) continue;
+      if (!barcode || !pid) continue;
+
+      if (!productsMap[pid]) {
+        productsMap[pid] = {
+          product_id: pid,
+          name_lo: 'ສິນຄ້າ ' + pid,
+          category: 'ທົ່ວໄປ',
+          base_uom: unitName,
+          is_weighable: false,
+          plu_code: '',
+          min_stock: 10,
+          total_stock: 0,
+          next_expiry: null,
+          units: []
+        };
+        categoriesSet.add('ທົ່ວໄປ');
+        try {
+          shProd.appendRow([pid, 'ສິນຄ້າ ' + pid, 'ທົ່ວໄປ', unitName, false, '', 10]);
+        } catch (e) {}
+      }
 
       const unitObj = {
         barcode: barcode,
@@ -375,6 +417,33 @@ function getPOSInitialData() {
       productsMap[pid].units.push(unitObj);
     }
   }
+
+  // 4. ສ້າງ Default Unit ໃຫ້ທຸກສິນຄ້າທີ່ຍັງບໍ່ທັນມີໜ່ວຍຂາຍໃນ Product_Units
+  Object.values(productsMap).forEach(p => {
+    if (!p.units || p.units.length === 0) {
+      const barcode = p.plu_code || p.product_id;
+      const unitObj = {
+        barcode: barcode,
+        product_id: p.product_id,
+        unit_name: p.base_uom || 'ອັນ',
+        conversion_qty: 1,
+        selling_price: 0,
+        product_name: p.name_lo,
+        base_uom: p.base_uom || 'ອັນ',
+        is_weighable: p.is_weighable,
+        plu_code: p.plu_code
+      };
+      p.units = [unitObj];
+      unitsList.push(unitObj);
+      barcodeMap[barcode] = unitObj;
+
+      if (shUnits) {
+        try {
+          shUnits.appendRow([barcode, p.product_id, unitObj.unit_name, 1, 0]);
+        } catch (e) {}
+      }
+    }
+  });
 
   return {
     products: Object.values(productsMap),
