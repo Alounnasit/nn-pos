@@ -48,8 +48,8 @@
   <!-- html5-qrcode for Mobile Camera Barcode Scanner -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
-  <!-- PeerJS for Real-time Mobile-to-PC Wireless Scanner Communication -->
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- Paho MQTT WebSocket for 100% Reliable Cross-Network Real-time Mobile Barcode Gun -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
   <style>
     body {
@@ -2588,10 +2588,25 @@
       }, 2500);
     }
 
+    // --- MQTT Broker Configuration (Ultra-fast, zero-NAT, works across 4G/5G & Wi-Fi) ---
+    const MQTT_BROKER = {
+      host: 'broker.emqx.io',
+      port: 8084,
+      path: '/mqtt',
+      useSSL: true
+    };
+    const MQTT_BACKUP_BROKER = {
+      host: 'broker.hivemq.com',
+      port: 8884,
+      path: '/mqtt',
+      useSSL: true
+    };
+
     // --- PC Side Pairing State & Functions ---
-    let pcPeer = null;
+    let pcMqttClient = null;
     let pcPairCode = null;
-    let pcActiveConn = null;
+    let pcLastHeartbeat = 0;
+    let pcHeartbeatTimer = null;
 
     function getOrGeneratePairCode() {
       let code = sessionStorage.getItem('nnpos_pc_pair_code');
@@ -2602,76 +2617,87 @@
       return code;
     }
 
-    function initPCPairing() {
-      if (pcPeer && !pcPeer.destroyed) return;
+    function initPCPairing(useBackup = false) {
+      if (pcMqttClient && pcMqttClient.isConnected()) return;
       pcPairCode = getOrGeneratePairCode();
-      const peerId = 'nnpos-' + pcPairCode;
+
+      const broker = useBackup ? MQTT_BACKUP_BROKER : MQTT_BROKER;
+      const clientId = 'nnpos_pc_' + pcPairCode + '_' + Math.random().toString(16).substr(2, 6);
 
       try {
-        if (typeof Peer === 'undefined') {
-          setTimeout(initPCPairing, 500);
+        if (typeof Paho === 'undefined' || !Paho.MQTT) {
+          setTimeout(() => initPCPairing(useBackup), 500);
           return;
         }
 
-        pcPeer = new Peer(peerId, {
-          debug: 1,
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:global.stun.twilio.com:3478' }
-            ]
-          }
-        });
+        pcMqttClient = new Paho.MQTT.Client(broker.host, broker.port, broker.path, clientId);
 
-        pcPeer.on('open', (id) => {
-          console.log('PC Peer online with ID:', id);
-          const codeEl = document.getElementById('pair-code-text');
-          if (codeEl) codeEl.innerText = pcPairCode;
-          const liveText = document.getElementById('pair-live-text');
-          if (liveText && !pcActiveConn) {
-            liveText.innerText = `ລໍຖ້າມືຖືສະແກນ QR Code... (ລະຫັດ: ${pcPairCode})`;
-          }
-        });
+        pcMqttClient.onConnectionLost = (responseObject) => {
+          console.warn('PC MQTT connection lost:', responseObject.errorMessage);
+          updatePCPairStatus(false);
+          setTimeout(() => initPCPairing(!useBackup), 2000);
+        };
 
-        pcPeer.on('connection', (conn) => {
-          pcActiveConn = conn;
-          conn.on('open', () => {
-            console.log('Mobile connected to PC via DataChannel!');
-            playBeep('success');
-            updatePCPairStatus(true);
-            showRemoteScanToast('📱 ມືຖືເຊື່ອມຕໍ່ສຳເລັດແລ້ວ! (ພ້ອມຍິງບາໂຄ້ດ)');
-          });
+        pcMqttClient.onMessageArrived = (msg) => {
+          try {
+            const data = JSON.parse(msg.payloadString);
+            if (data.type === 'presence' && data.from === 'mobile') {
+              pcLastHeartbeat = Date.now();
+              updatePCPairStatus(true);
 
-          conn.on('data', (data) => {
-            console.log('Received data from mobile:', data);
-            if (data && data.type === 'barcode') {
+              // Reply with PC online ack
+              const reply = new Paho.MQTT.Message(JSON.stringify({ type: 'presence', from: 'pc', status: 'online' }));
+              reply.destinationName = `nnpos/v1/${pcPairCode}/presence`;
+              pcMqttClient.send(reply);
+            } else if (data.type === 'barcode') {
+              pcLastHeartbeat = Date.now();
+              updatePCPairStatus(true);
               handleRemoteBarcodeFromMobile(data.barcode, data.targetMode);
             }
-          });
+          } catch (e) {
+            console.error('Error parsing incoming MQTT message on PC:', e);
+          }
+        };
 
-          conn.on('close', () => {
-            console.log('Mobile disconnected from PC');
-            pcActiveConn = null;
-            updatePCPairStatus(false);
-            showRemoteScanToast('⚠️ ມືຖືຕັດການເຊື່ອມຕໍ່', true);
-          });
+        pcMqttClient.connect({
+          useSSL: broker.useSSL,
+          timeout: 8,
+          keepAliveInterval: 30,
+          cleanSession: true,
+          onSuccess: () => {
+            console.log(`PC connected to MQTT broker (${broker.host}) with Room: ${pcPairCode}`);
+            const scanTopic = `nnpos/v1/${pcPairCode}/scan`;
+            const presenceTopic = `nnpos/v1/${pcPairCode}/presence`;
 
-          conn.on('error', (err) => {
-            console.warn('PC connection error:', err);
-          });
-        });
+            pcMqttClient.subscribe(scanTopic);
+            pcMqttClient.subscribe(presenceTopic);
 
-        pcPeer.on('error', (err) => {
-          console.warn('PC PeerJS error:', err);
-          if (err && err.type === 'unavailable-id') {
-            sessionStorage.removeItem('nnpos_pc_pair_code');
-            pcPairCode = Math.floor(1000 + Math.random() * 9000).toString();
-            sessionStorage.setItem('nnpos_pc_pair_code', pcPairCode);
-            setTimeout(initPCPairing, 500);
+            const codeEl = document.getElementById('pair-code-text');
+            if (codeEl) codeEl.innerText = pcPairCode;
+            const liveText = document.getElementById('pair-live-text');
+            if (liveText && (Date.now() - pcLastHeartbeat > 10000)) {
+              liveText.innerText = `ລໍຖ້າມືຖືສະແກນ QR Code... (ລະຫັດ: ${pcPairCode})`;
+            }
+
+            // Start heartbeat monitor
+            if (pcHeartbeatTimer) clearInterval(pcHeartbeatTimer);
+            pcHeartbeatTimer = setInterval(() => {
+              if (pcLastHeartbeat > 0 && Date.now() - pcLastHeartbeat > 12000) {
+                updatePCPairStatus(false);
+              }
+            }, 5000);
+          },
+          onFailure: (err) => {
+            console.warn(`PC MQTT connect error on ${broker.host}:`, err);
+            if (!useBackup) {
+              setTimeout(() => initPCPairing(true), 1500);
+            } else {
+              setTimeout(() => initPCPairing(false), 3000);
+            }
           }
         });
       } catch (e) {
-        console.error('Failed to init PC pairing:', e);
+        console.error('Error initializing PC MQTT pairing:', e);
       }
     }
 
@@ -2682,29 +2708,17 @@
       const pairBtn = document.getElementById('btn-pair-scanner');
 
       if (isConnected) {
-        if (liveDot) {
-          liveDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
-        }
-        if (liveText) {
-          liveText.innerHTML = '<span class="text-emerald-400 font-bold">🟢 ເຊື່ອມຕໍ່ກັບມືຖືແລ້ວ! ພ້ອມຮັບບາໂຄ້ດ</span>';
-        }
-        if (statusDot) {
-          statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse';
-        }
+        if (liveDot) liveDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+        if (liveText) liveText.innerHTML = '<span class="text-emerald-400 font-bold">🟢 ເຊື່ອມຕໍ່ກັບມືຖືແລ້ວ! ພ້ອມຮັບບາໂຄ້ດ</span>';
+        if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse';
         if (pairBtn) {
           pairBtn.classList.add('border-emerald-500/70', 'text-emerald-300');
           pairBtn.classList.remove('border-indigo-500/40', 'text-indigo-300');
         }
       } else {
-        if (liveDot) {
-          liveDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
-        }
-        if (liveText) {
-          liveText.innerText = `ລໍຖ້າມືຖືສະແກນ QR Code... (ລະຫັດ: ${pcPairCode || '----'})`;
-        }
-        if (statusDot) {
-          statusDot.className = 'w-2 h-2 rounded-full bg-slate-500';
-        }
+        if (liveDot) liveDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
+        if (liveText) liveText.innerText = `ລໍຖ້າມືຖືສະແກນ QR Code... (ລະຫັດ: ${pcPairCode || '----'})`;
+        if (statusDot) statusDot.className = 'w-2 h-2 rounded-full bg-slate-500';
         if (pairBtn) {
           pairBtn.classList.remove('border-emerald-500/70', 'text-emerald-300');
           pairBtn.classList.add('border-indigo-500/40', 'text-indigo-300');
@@ -2769,6 +2783,23 @@
       prompt('ກັອບປີ້ລິ້ງສຳລັບເປີດໃນມືຖື:', text);
     }
 
+    function sendFeedbackToMobile(success, message, barcode) {
+      if (pcMqttClient && pcMqttClient.isConnected()) {
+        try {
+          const msg = new Paho.MQTT.Message(JSON.stringify({
+            type: 'feedback',
+            success: success,
+            message: message,
+            barcode: barcode
+          }));
+          msg.destinationName = `nnpos/v1/${pcPairCode}/feedback`;
+          pcMqttClient.send(msg);
+        } catch (e) {
+          console.warn('Error sending feedback to mobile:', e);
+        }
+      }
+    }
+
     function handleRemoteBarcodeFromMobile(rawCode, targetMode = 'POS') {
       if (!rawCode) return;
       rawCode = String(rawCode).trim();
@@ -2794,15 +2825,11 @@
           }
           playBeep('success');
           showRemoteScanToast(`📦 ຮັບສິນຄ້າ: ${prod.name_lo}`);
-          if (pcActiveConn && pcActiveConn.open) {
-            pcActiveConn.send({ type: 'feedback', success: true, message: `ຮັບເຂົ້າ: ${prod.name_lo}` });
-          }
+          sendFeedbackToMobile(true, `ຮັບເຂົ້າ: ${prod.name_lo}`, rawCode);
         } else {
           playBeep('error');
           showRemoteScanToast(`⚠️ ບໍ່ພົບສິນຄ້າລະຫັດ: ${rawCode}`, true);
-          if (pcActiveConn && pcActiveConn.open) {
-            pcActiveConn.send({ type: 'feedback', success: false, message: `ບໍ່ພົບລະຫັດ: ${rawCode}` });
-          }
+          sendFeedbackToMobile(false, `ບໍ່ພົບລະຫັດ: ${rawCode}`, rawCode);
         }
         return;
       }
@@ -2812,9 +2839,7 @@
       if (res.success) {
         playBeep('success');
         showRemoteScanToast(`🛒 ຍິງຈາກມືຖື: ${res.itemName}`);
-        if (pcActiveConn && pcActiveConn.open) {
-          pcActiveConn.send({ type: 'feedback', success: true, message: `ຂາຍ: ${res.itemName}` });
-        }
+        sendFeedbackToMobile(true, `ຂາຍ: ${res.itemName}`, rawCode);
       } else {
         playBeep('error');
         const input = document.getElementById('barcode-input');
@@ -2823,15 +2848,12 @@
           input.focus();
         }
         showRemoteScanToast(`⚠️ ບໍ່ພົບລະຫັດ: ${rawCode}`, true);
-        if (pcActiveConn && pcActiveConn.open) {
-          pcActiveConn.send({ type: 'feedback', success: false, message: `ບໍ່ພົບລະຫັດ: ${rawCode}` });
-        }
+        sendFeedbackToMobile(false, `ບໍ່ພົບລະຫັດ: ${rawCode}`, rawCode);
       }
     }
 
-    // --- Mobile Wireless Scanner Gun Controller ---
-    let mobilePeer = null;
-    let mobileConn = null;
+    // --- Mobile Wireless Scanner Gun Controller (Paho MQTT) ---
+    let mobileMqttClient = null;
     let mobilePairCode = null;
     let mobileHtml5QrCode = null;
     let currentScannerTargetMode = 'POS';
@@ -2840,6 +2862,7 @@
     let lastScannedTimestamp = 0;
     let isMobileTorchOn = false;
     let mobileCurrentFacingMode = 'environment';
+    let mobileHeartbeatTimer = null;
 
     function checkMobileScannerModeOnLoad() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -2849,12 +2872,13 @@
         initMobileWirelessScanner(mobilePairCode);
       } else {
         // Run PC listener in background on PC devices
-        setTimeout(initPCPairing, 600);
+        setTimeout(() => initPCPairing(false), 500);
       }
     }
 
-    async function initMobileWirelessScanner(pairCode) {
-      console.log('Starting Mobile Wireless Barcode Scanner Gun Mode, pairing code:', pairCode);
+    async function initMobileWirelessScanner(pairCode, useBackup = false) {
+      mobilePairCode = pairCode;
+      console.log(`Starting Mobile Wireless Barcode Scanner Gun Mode, Room: ${pairCode}`);
       const view = document.getElementById('wireless-scanner-view');
       view.classList.remove('hidden');
 
@@ -2863,51 +2887,42 @@
       if (label) label.innerText = `ກຳລັງເຊື່ອມຕໍ່ PC (${pairCode})...`;
       if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse';
 
-      // Connect to PC via WebRTC
-      connectMobileToPC(pairCode);
+      // Connect to MQTT Broker
+      connectMobileToMQTT(pairCode, useBackup);
 
       // Start Camera
       startWirelessCameraScanner();
     }
 
-    function connectMobileToPC(pairCode) {
+    function connectMobileToMQTT(pairCode, useBackup = false) {
+      if (typeof Paho === 'undefined' || !Paho.MQTT) {
+        setTimeout(() => connectMobileToMQTT(pairCode, useBackup), 400);
+        return;
+      }
+
+      if (mobileMqttClient && mobileMqttClient.isConnected()) {
+        try { mobileMqttClient.disconnect(); } catch (e) {}
+      }
+
+      const broker = useBackup ? MQTT_BACKUP_BROKER : MQTT_BROKER;
+      const clientId = 'nnpos_mob_' + pairCode + '_' + Math.random().toString(16).substr(2, 6);
+
       try {
-        if (typeof Peer === 'undefined') {
-          setTimeout(() => connectMobileToPC(pairCode), 500);
-          return;
-        }
+        mobileMqttClient = new Paho.MQTT.Client(broker.host, broker.port, broker.path, clientId);
 
-        if (mobilePeer && !mobilePeer.destroyed) {
-          try { mobilePeer.destroy(); } catch(e) {}
-        }
+        mobileMqttClient.onConnectionLost = (res) => {
+          console.warn('Mobile MQTT connection lost:', res.errorMessage);
+          const label = document.getElementById('scanner-conn-label');
+          const dot = document.getElementById('scanner-conn-dot');
+          if (label) label.innerText = `ສັນຍານຂາດ, ກຳລັງເຊື່ອມຕໍ່ໃໝ່...`;
+          if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
+          setTimeout(() => connectMobileToMQTT(pairCode, !useBackup), 2000);
+        };
 
-        mobilePeer = new Peer({
-          debug: 1,
-          config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:global.stun.twilio.com:3478' }
-            ]
-          }
-        });
-
-        mobilePeer.on('open', (id) => {
-          console.log('Mobile peer ready:', id, 'connecting to PC: nnpos-' + pairCode);
-          mobileConn = mobilePeer.connect('nnpos-' + pairCode, { reliable: true });
-
-          mobileConn.on('open', () => {
-            console.log('Connected to PC POS successfully!');
-            const label = document.getElementById('scanner-conn-label');
-            const dot = document.getElementById('scanner-conn-dot');
-            if (label) label.innerHTML = `<span class="text-emerald-400 font-bold">🟢 ເຊື່ອມຕໍ່ PC ແລ້ວ (${pairCode})</span>`;
-            if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
-
-            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-            playBeep('success');
-          });
-
-          mobileConn.on('data', (data) => {
-            if (data && data.type === 'feedback') {
+        mobileMqttClient.onMessageArrived = (msg) => {
+          try {
+            const data = JSON.parse(msg.payloadString);
+            if (data.type === 'feedback') {
               const codeEl = document.getElementById('wireless-last-scanned-code');
               if (codeEl) {
                 if (data.success) {
@@ -2917,29 +2932,62 @@
                   if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
                 }
               }
+            } else if (data.type === 'presence' && data.from === 'pc') {
+              const label = document.getElementById('scanner-conn-label');
+              const dot = document.getElementById('scanner-conn-dot');
+              if (label) label.innerHTML = `<span class="text-emerald-400 font-bold">🟢 ເຊື່ອມຕໍ່ PC ແລ້ວ (${pairCode})</span>`;
+              if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
             }
-          });
+          } catch (e) {
+            console.error('Error handling mobile incoming message:', e);
+          }
+        };
 
-          mobileConn.on('close', () => {
-            console.log('Connection closed, trying to reconnect in 2s...');
+        mobileMqttClient.connect({
+          useSSL: broker.useSSL,
+          timeout: 8,
+          keepAliveInterval: 30,
+          cleanSession: true,
+          onSuccess: () => {
+            console.log(`Mobile connected to MQTT broker (${broker.host})!`);
+            const feedbackTopic = `nnpos/v1/${pairCode}/feedback`;
+            const presenceTopic = `nnpos/v1/${pairCode}/presence`;
+
+            mobileMqttClient.subscribe(feedbackTopic);
+            mobileMqttClient.subscribe(presenceTopic);
+
+            // Announce presence immediately to PC
+            sendMobilePresence();
+
+            // Heartbeat loop every 4s
+            if (mobileHeartbeatTimer) clearInterval(mobileHeartbeatTimer);
+            mobileHeartbeatTimer = setInterval(sendMobilePresence, 4000);
+
             const label = document.getElementById('scanner-conn-label');
             const dot = document.getElementById('scanner-conn-dot');
-            if (label) label.innerText = `ສັນຍານຂາດ, ກຳລັງເຊື່ອມຕໍ່ໃໝ່...`;
-            if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
-            setTimeout(() => connectMobileToPC(pairCode), 2000);
-          });
+            if (label) label.innerHTML = `<span class="text-emerald-400 font-bold">🟢 ເຊື່ອມຕໍ່ PC ແລ້ວ (${pairCode})</span>`;
+            if (dot) dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
 
-          mobileConn.on('error', (err) => {
-            console.warn('Mobile connection error:', err);
-          });
-        });
-
-        mobilePeer.on('error', (err) => {
-          console.warn('Mobile PeerJS error:', err);
-          setTimeout(() => connectMobileToPC(pairCode), 3000);
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            playBeep('success');
+          },
+          onFailure: (err) => {
+            console.warn(`Mobile MQTT connect error on ${broker.host}:`, err);
+            setTimeout(() => connectMobileToMQTT(pairCode, !useBackup), 2000);
+          }
         });
       } catch (e) {
-        console.error('Error starting mobile peer:', e);
+        console.error('Error connecting mobile to MQTT:', e);
+      }
+    }
+
+    function sendMobilePresence() {
+      if (mobileMqttClient && mobileMqttClient.isConnected()) {
+        try {
+          const msg = new Paho.MQTT.Message(JSON.stringify({ type: 'presence', from: 'mobile', status: 'online' }));
+          msg.destinationName = `nnpos/v1/${mobilePairCode}/presence`;
+          mobileMqttClient.send(msg);
+        } catch (e) {}
       }
     }
 
@@ -3017,21 +3065,29 @@
       if (navigator.vibrate) navigator.vibrate(70);
       playBeep('success');
 
-      if (mobileConn && mobileConn.open) {
-        mobileConn.send({
-          type: 'barcode',
-          barcode: rawCode,
-          targetMode: currentScannerTargetMode
-        });
-        mobileScannedCount++;
-        const badge = document.getElementById('wireless-scan-count-badge');
-        if (badge) badge.innerText = `${mobileScannedCount} ລາຍການ`;
-        const codeEl = document.getElementById('wireless-last-scanned-code');
-        if (codeEl) codeEl.innerText = `${rawCode} (ຍິງສົ່ງແລ້ວ...)`;
+      if (mobileMqttClient && mobileMqttClient.isConnected()) {
+        try {
+          const msg = new Paho.MQTT.Message(JSON.stringify({
+            type: 'barcode',
+            barcode: rawCode,
+            targetMode: currentScannerTargetMode
+          }));
+          msg.destinationName = `nnpos/v1/${mobilePairCode}/scan`;
+          mobileMqttClient.send(msg);
+
+          mobileScannedCount++;
+          const badge = document.getElementById('wireless-scan-count-badge');
+          if (badge) badge.innerText = `${mobileScannedCount} ລາຍການ`;
+          const codeEl = document.getElementById('wireless-last-scanned-code');
+          if (codeEl) codeEl.innerText = `${rawCode} (ຍິງສົ່ງແລ້ວ...)`;
+        } catch (e) {
+          console.error('Error sending MQTT message:', e);
+        }
       } else {
         const codeEl = document.getElementById('wireless-last-scanned-code');
-        if (codeEl) codeEl.innerHTML = `<span class="text-amber-400 font-bold">${rawCode} (PC ຍັງບໍ່ເຊື່ອມຕໍ່)</span>`;
+        if (codeEl) codeEl.innerHTML = `<span class="text-amber-400 font-bold">${rawCode} (ກຳລັງເຊື່ອມຕໍ່ PC...)</span>`;
         playBeep('error');
+        connectMobileToMQTT(mobilePairCode, false);
       }
     }
 
@@ -3158,11 +3214,11 @@
           await mobileHtml5QrCode.clear();
         } catch(e) {}
       }
-      if (mobileConn) {
-        try { mobileConn.close(); } catch(e) {}
+      if (mobileHeartbeatTimer) {
+        clearInterval(mobileHeartbeatTimer);
       }
-      if (mobilePeer) {
-        try { mobilePeer.destroy(); } catch(e) {}
+      if (mobileMqttClient && mobileMqttClient.isConnected()) {
+        try { mobileMqttClient.disconnect(); } catch(e) {}
       }
       const url = new URL(window.location.href);
       url.searchParams.delete('scanner');
