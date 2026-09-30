@@ -129,9 +129,179 @@
 </head>
 <body class="h-screen flex flex-col overflow-hidden text-slate-800">
 
+  <!-- ================= LOGIN & AUTHENTICATION PORTAL ================= -->
+  <div id="login-screen" class="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto">
+    <!-- Ambient Background Lighting / Glow effects -->
+    <div class="fixed -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="fixed -bottom-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="relative w-full max-w-md bg-slate-900/90 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden my-auto fade-in">
+      <!-- Decorative Top Glow Line -->
+      <div class="h-1.5 w-full bg-gradient-to-r from-amber-400 via-blue-500 to-indigo-600"></div>
+
+      <div class="p-6 sm:p-8 space-y-6">
+        <!-- Logo & Title -->
+        <div class="text-center space-y-2">
+          <div class="inline-flex w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 items-center justify-center shadow-lg shadow-blue-500/30 ring-4 ring-blue-500/20 mb-1">
+            <i class="fa-solid fa-cart-shopping text-white text-2xl"></i>
+          </div>
+          <h2 class="text-2xl font-black text-white tracking-tight">NN POS</h2>
+          <p class="text-xs text-slate-400 font-medium">ລະບົບຂາຍໜ້າຮ້ານ & ບໍລິຫານສາງ • ກະລຸນາເຂົ້າສູ່ລະບົບ</p>
+        </div>
+
+        <!-- Quick 1-Click Role Switcher Demo Cards -->
+        <div>
+          <div class="flex items-center justify-between text-[11px] text-slate-400 mb-2 font-medium px-1">
+            <span>ເລືອກບັນຊີທົດລອງ (Quick Roles):</span>
+            <span class="text-blue-400">ກົດເພື່ອເລືອກ</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <!-- Superadmin Button -->
+            <button type="button" onclick="selectQuickRole('superadmin')" id="role-btn-superadmin" class="flex flex-col items-center p-2.5 rounded-2xl bg-slate-800 border-2 border-amber-500 text-slate-200 transition active:scale-95 group shadow-md shadow-amber-500/10">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center text-white text-xs mb-1.5 shadow-sm group-hover:scale-110 transition">
+                <i class="fa-solid fa-crown"></i>
+              </div>
+              <span class="text-[11px] font-bold text-amber-300">Super Admin</span>
+              <span class="text-[9px] text-slate-400 font-mono">ເຈົ້າຂອງຮ້ານ</span>
+            </button>
+
+            <!-- Admin Button -->
+            <button type="button" onclick="selectQuickRole('admin')" id="role-btn-admin" class="flex flex-col items-center p-2.5 rounded-2xl bg-slate-800/60 border border-slate-700 hover:border-blue-400 text-slate-200 transition active:scale-95 group">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-xs mb-1.5 shadow-sm group-hover:scale-110 transition">
+                <i class="fa-solid fa-shield-halved"></i>
+              </div>
+              <span class="text-[11px] font-bold text-blue-300">Admin</span>
+              <span class="text-[9px] text-slate-400 font-mono">ຜູ້ຈັດການ</span>
+            </button>
+
+            <!-- Cashier Button -->
+            <button type="button" onclick="selectQuickRole('cashier')" id="role-btn-cashier" class="flex flex-col items-center p-2.5 rounded-2xl bg-slate-800/60 border border-slate-700 hover:border-emerald-400 text-slate-200 transition active:scale-95 group">
+              <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xs mb-1.5 shadow-sm group-hover:scale-110 transition">
+                <i class="fa-solid fa-cash-register"></i>
+              </div>
+              <span class="text-[11px] font-bold text-emerald-300">Cashier</span>
+              <span class="text-[9px] text-slate-400 font-mono">ພະນັກງານຂາຍ</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode Tabs: Password vs Quick PIN -->
+        <div class="flex items-center bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60 text-xs">
+          <button type="button" id="login-tab-pwd" onclick="switchLoginTab('pwd')" class="flex-1 py-2 font-bold rounded-xl bg-blue-600 text-white shadow transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-key text-[11px]"></i>
+            <span>ຊື່ຜູ້ໃຊ້ & ລະຫັດຜ່ານ</span>
+          </button>
+          <button type="button" id="login-tab-pin" onclick="switchLoginTab('pin')" class="flex-1 py-2 font-bold rounded-xl text-slate-400 hover:text-slate-200 transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-calculator text-[11px]"></i>
+            <span>ລະຫັດ PIN 4 ຫຼັກ</span>
+          </button>
+        </div>
+
+        <!-- TAB 1: Password Form -->
+        <form id="form-login-pwd" onsubmit="handlePasswordLogin(event)" class="space-y-4">
+          <div class="space-y-1">
+            <label class="block text-xs font-semibold text-slate-300">ຊື່ຜູ້ໃຊ້ (Username)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                <i class="fa-regular fa-user text-sm"></i>
+              </span>
+              <input 
+                type="text" 
+                id="login-username" 
+                required 
+                placeholder="ປ້ອນຊື່ຜູ້ໃຊ້..." 
+                value="superadmin"
+                class="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition font-mono"
+              >
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-semibold text-slate-300">ລະຫັດຜ່ານ (Password)</label>
+              <span id="role-pwd-hint" class="text-[10px] text-slate-400 font-mono">ຄ່າເລີ່ມຕົ້ນ: superadmin123</span>
+            </div>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                <i class="fa-solid fa-lock text-sm"></i>
+              </span>
+              <input 
+                type="password" 
+                id="login-password" 
+                required 
+                placeholder="ປ້ອນລະຫັດຜ່ານ..." 
+                value="superadmin123"
+                class="w-full pl-10 pr-10 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition font-mono"
+              >
+              <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white">
+                <i id="pwd-eye-icon" class="fa-regular fa-eye text-sm"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="login-remember-me" checked class="w-4 h-4 rounded text-blue-600 bg-slate-800 border-slate-700 focus:ring-blue-500 focus:ring-offset-slate-900">
+              <span>ຈື່ການເຂົ້າສູ່ລະບົບ (Remember Me)</span>
+            </label>
+          </div>
+
+          <button type="submit" id="btn-submit-pwd" class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white font-bold rounded-xl text-sm shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-arrow-right-to-bracket"></i>
+            <span>ເຂົ້າສູ່ລະບົບ</span>
+          </button>
+        </form>
+
+        <!-- TAB 2: Quick Numeric PIN Pad Form -->
+        <div id="form-login-pin" class="space-y-4 hidden">
+          <div class="text-center space-y-1">
+            <span class="text-xs text-slate-400">ປ້ອນລະຫັດ PIN 4 ຫຼັກ:</span>
+            <!-- 4-dot PIN Display -->
+            <div class="flex items-center justify-center gap-3 pt-1">
+              <div id="pin-dot-1" class="w-4 h-4 rounded-full border-2 border-slate-600 bg-transparent transition"></div>
+              <div id="pin-dot-2" class="w-4 h-4 rounded-full border-2 border-slate-600 bg-transparent transition"></div>
+              <div id="pin-dot-3" class="w-4 h-4 rounded-full border-2 border-slate-600 bg-transparent transition"></div>
+              <div id="pin-dot-4" class="w-4 h-4 rounded-full border-2 border-slate-600 bg-transparent transition"></div>
+            </div>
+            <p id="pin-role-label" class="text-[11px] font-mono text-amber-300 pt-1">PIN: 9999 (Super Admin)</p>
+          </div>
+
+          <!-- Numeric Keypad Grid -->
+          <div class="grid grid-cols-3 gap-2 pt-1 max-w-[280px] mx-auto">
+            <button type="button" onclick="pressPinKey('1')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">1</button>
+            <button type="button" onclick="pressPinKey('2')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">2</button>
+            <button type="button" onclick="pressPinKey('3')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">3</button>
+            <button type="button" onclick="pressPinKey('4')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">4</button>
+            <button type="button" onclick="pressPinKey('5')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">5</button>
+            <button type="button" onclick="pressPinKey('6')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">6</button>
+            <button type="button" onclick="pressPinKey('7')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">7</button>
+            <button type="button" onclick="pressPinKey('8')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">8</button>
+            <button type="button" onclick="pressPinKey('9')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">9</button>
+            <button type="button" onclick="clearPinKey()" class="py-3 rounded-2xl bg-slate-800/50 hover:bg-slate-700 active:scale-95 text-slate-400 font-bold border border-slate-700/60 transition text-xs">C</button>
+            <button type="button" onclick="pressPinKey('0')" class="py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-mono text-lg font-bold border border-slate-700/80 transition">0</button>
+            <button type="button" onclick="backspacePinKey()" class="py-3 rounded-2xl bg-slate-800/50 hover:bg-slate-700 active:scale-95 text-rose-400 font-bold border border-slate-700/60 transition"><i class="fa-solid fa-delete-left"></i></button>
+          </div>
+        </div>
+
+        <!-- Role Permissions Info Box -->
+        <div class="p-3 bg-slate-800/40 rounded-2xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
+          <div class="flex items-center gap-1.5 text-slate-300 font-semibold">
+            <i class="fa-solid fa-circle-info text-blue-400"></i>
+            <span>ສິດທິການໃຊ້ງານ (Role Permissions):</span>
+          </div>
+          <p><span class="text-amber-400 font-bold">• Super Admin:</span> ຂາຍ POS, ຮັບສິນຄ້າ, ສະຫຼຸບຍອດ, ຕັ້ງຄ່າລະບົບ API</p>
+          <p><span class="text-blue-400 font-bold">• Admin:</span> ຂາຍ POS, ຮັບສິນຄ້າ, ສະຫຼຸບຍອດຂາຍປະຈຳວັນ</p>
+          <p><span class="text-emerald-400 font-bold">• Cashier:</span> ຂາຍໜ້າຮ້ານ POS (ຮັບສິນຄ້າ & ສະຫຼຸບຍອດ ຖືກລັອກ)</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- ================= TOP NAVIGATION BAR ================= -->
-  <header class="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between shadow-md shrink-0 select-none">
-    <div class="flex items-center space-x-3">
+  <header class="bg-slate-900 text-white px-3 sm:px-4 py-2.5 flex items-center justify-between shadow-md shrink-0 select-none">
+    <div class="flex items-center space-x-2.5 sm:space-x-3">
       <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
         <i class="fa-solid fa-cart-shopping text-white text-lg"></i>
       </div>
@@ -151,10 +321,22 @@
         <span id="conn-text">ເຊື່ອມຕໍ່ລະບົບ</span>
       </div>
 
-      <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300">
-        <i class="fa-regular fa-user text-blue-400"></i>
-        <span id="cashier-name">ແຄັດເຊຍ 1</span>
+      <!-- User Profile Badge & Active Role -->
+      <div id="user-profile-badge" class="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-800 border border-slate-700 text-slate-200">
+        <div id="user-avatar-icon" class="w-6 h-6 rounded-lg bg-gradient-to-tr from-amber-500 to-rose-500 flex items-center justify-center text-[10px] text-white font-bold shadow-sm">
+          <i id="user-role-icon" class="fa-solid fa-crown"></i>
+        </div>
+        <div class="flex flex-col text-left">
+          <span id="cashier-name" class="font-bold leading-none text-xs">Super Admin</span>
+          <span id="cashier-role-label" class="text-[9px] text-amber-400 font-medium">ເຈົ້າຂອງຮ້ານ</span>
+        </div>
       </div>
+
+      <!-- Logout Button -->
+      <button onclick="confirmLogout()" class="px-2 py-1.5 text-xs bg-rose-500/20 hover:bg-rose-500/30 active:scale-95 text-rose-300 hover:text-white rounded-xl border border-rose-500/30 transition flex items-center gap-1" title="ອອກຈາກລະບົບ">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+        <span class="hidden xl:inline">ອອກ</span>
+      </button>
 
       <div class="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 font-mono">
         <i class="fa-regular fa-clock text-amber-400"></i>
@@ -171,14 +353,16 @@
         <span id="pair-status-dot" class="w-2 h-2 rounded-full bg-slate-500" title="ສະຖານະການເຊື່ອມຕໍ່"></span>
       </button>
 
-      <button onclick="openRestockModal()" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow-sm" title="ຮັບສິນຄ້າເຂົ້າສາງ">
+      <button id="btn-restock" onclick="openRestockModal()" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow-sm relative" title="ຮັບສິນຄ້າເຂົ້າສາງ">
         <i class="fa-solid fa-boxes-stacked text-amber-400"></i>
         <span class="hidden lg:inline">ຮັບສິນຄ້າ (Restock)</span>
+        <span id="badge-lock-restock" class="hidden text-[10px] text-amber-400"><i class="fa-solid fa-lock"></i></span>
       </button>
 
-      <button onclick="openDailyReportModal()" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow-sm" title="ລາຍງານຍອດຂາຍ">
+      <button id="btn-report" onclick="openDailyReportModal()" class="px-2.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5 shadow-sm relative" title="ລາຍງານຍອດຂາຍ">
         <i class="fa-solid fa-chart-pie text-emerald-400"></i>
         <span class="hidden lg:inline">ສະຫຼຸບຍອດ</span>
+        <span id="badge-lock-report" class="hidden text-[10px] text-amber-400"><i class="fa-solid fa-lock"></i></span>
       </button>
 
       <button onclick="toggleSound()" id="sound-btn" class="p-1.5 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition" title="ເປີດ/ປິດສຽງ">
@@ -901,6 +1085,7 @@
       discount: 0,
       activePaymentType: 'CASH',
       soundEnabled: true,
+      currentUser: null,
       storeInfo: {
         name: 'ຮ້ານຂາຍເຄື່ອງຍ່ອຍ NN POS',
         address: 'ບ້ານ ໂພນຕ້ອງ, ເມືອງ ຈັນທະບູລີ, ນະຄອນຫຼວງວຽງຈັນ',
@@ -969,6 +1154,7 @@
       startLiveClock();
       setupKeyboardShortcuts();
       initCatalogData();
+      checkSavedLoginSession();
       checkMobileScannerModeOnLoad();
     });
 
@@ -1032,6 +1218,7 @@
     }
 
     function promptForGasApiUrl() {
+      if (!checkPermission('can_config', 'ຕັ້ງຄ່າ Google Sheets API')) return;
       if (state.isAppsScript) {
         Swal.fire({
           icon: 'info',
@@ -2398,6 +2585,7 @@
      * RESTOCK MODAL
      */
     function openRestockModal() {
+      if (!checkPermission('can_restock', 'ຮັບສິນຄ້າເຂົ້າສາງ (Restock)')) return;
       document.getElementById('restock-modal').classList.remove('hidden');
       const today = new Date().toISOString().split('T')[0];
       document.getElementById('restock-expiry-date').min = today;
@@ -2466,6 +2654,7 @@
      * DAILY SUMMARY REPORT MODAL
      */
     function openDailyReportModal() {
+      if (!checkPermission('can_report', 'ເບິ່ງລາຍງານຍອດຂາຍ (Daily Summary)')) return;
       const modal = document.getElementById('report-modal');
       const content = document.getElementById('report-modal-content');
       modal.classList.remove('hidden');
@@ -3225,6 +3414,441 @@
       window.history.replaceState({}, '', url.toString());
 
       document.getElementById('wireless-scanner-view').classList.add('hidden');
+    }
+
+    /**
+     * =========================================================================
+     * 👥 USER AUTHENTICATION & ROLE-BASED ACCESS CONTROL (RBAC)
+     * =========================================================================
+     */
+    const SYSTEM_USERS = [
+      {
+        user_id: 'USR-001',
+        username: 'superadmin',
+        password: 'superadmin123',
+        pin: '9999',
+        full_name: 'ເຈົ້າຂອງຮ້ານ (Super Admin)',
+        role: 'SUPERADMIN',
+        role_label: 'Super Admin',
+        role_badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        avatar_bg: 'from-amber-500 to-rose-500',
+        icon: 'fa-crown',
+        can_pos: true,
+        can_restock: true,
+        can_report: true,
+        can_config: true
+      },
+      {
+        user_id: 'USR-002',
+        username: 'admin',
+        password: 'admin123',
+        pin: '8888',
+        full_name: 'ຜູ້ຈັດການ (Store Admin)',
+        role: 'ADMIN',
+        role_label: 'Admin',
+        role_badge: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+        avatar_bg: 'from-blue-600 to-indigo-600',
+        icon: 'fa-shield-halved',
+        can_pos: true,
+        can_restock: true,
+        can_report: true,
+        can_config: false
+      },
+      {
+        user_id: 'USR-003',
+        username: 'cashier',
+        password: 'cashier123',
+        pin: '1234',
+        full_name: 'ພະນັກງານຂາຍ (Cashier)',
+        role: 'CASHIER',
+        role_label: 'Cashier',
+        role_badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        avatar_bg: 'from-emerald-500 to-teal-600',
+        icon: 'fa-cash-register',
+        can_pos: true,
+        can_restock: false,
+        can_report: false,
+        can_config: false
+      }
+    ];
+
+    let currentEnteredPin = '';
+
+    function checkSavedLoginSession() {
+      // If opened as mobile barcode gun scanner, bypass login screen
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('scanner')) {
+        state.currentUser = SYSTEM_USERS.find(u => u.role === 'CASHIER');
+        const loginScreen = document.getElementById('login-screen');
+        if (loginScreen) loginScreen.classList.add('hidden');
+        return;
+      }
+
+      // Check storage
+      let saved = localStorage.getItem('nnpos_current_user') || sessionStorage.getItem('nnpos_current_user');
+      if (saved) {
+        try {
+          const user = JSON.parse(saved);
+          const valid = SYSTEM_USERS.find(u => u.username === user.username);
+          if (valid) {
+            state.currentUser = valid;
+            const loginScreen = document.getElementById('login-screen');
+            if (loginScreen) loginScreen.classList.add('hidden');
+            applyUserRolePermissions();
+            return;
+          }
+        } catch(e) {}
+      }
+
+      // If no valid session, show login screen
+      showLoginScreen();
+      selectQuickRole('superadmin');
+    }
+
+    function showLoginScreen() {
+      const loginScreen = document.getElementById('login-screen');
+      if (loginScreen) loginScreen.classList.remove('hidden');
+    }
+
+    function selectQuickRole(roleKey) {
+      const user = SYSTEM_USERS.find(u => u.username === roleKey);
+      if (!user) return;
+
+      // Highlight active role button
+      ['superadmin', 'admin', 'cashier'].forEach(r => {
+        const btn = document.getElementById('role-btn-' + r);
+        if (btn) {
+          if (r === roleKey) {
+            btn.classList.add('border-2', 'border-amber-500', 'bg-slate-800', 'shadow-md', 'shadow-amber-500/10');
+            btn.classList.remove('bg-slate-800/60', 'border-slate-700');
+          } else {
+            btn.classList.remove('border-2', 'border-amber-500', 'bg-slate-800', 'shadow-md', 'shadow-amber-500/10');
+            btn.classList.add('bg-slate-800/60', 'border-slate-700');
+          }
+        }
+      });
+
+      // Fill in password form
+      const userInput = document.getElementById('login-username');
+      const pwdInput = document.getElementById('login-password');
+      const hint = document.getElementById('role-pwd-hint');
+      const pinLabel = document.getElementById('pin-role-label');
+
+      if (userInput) userInput.value = user.username;
+      if (pwdInput) pwdInput.value = user.password;
+      if (hint) hint.innerText = `ຄ່າເລີ່ມຕົ້ນ: ${user.password}`;
+      if (pinLabel) pinLabel.innerText = `PIN: ${user.pin} (${user.role_label})`;
+    }
+
+    function switchLoginTab(tab) {
+      const pwdTab = document.getElementById('login-tab-pwd');
+      const pinTab = document.getElementById('login-tab-pin');
+      const formPwd = document.getElementById('form-login-pwd');
+      const formPin = document.getElementById('form-login-pin');
+
+      if (tab === 'pwd') {
+        pwdTab.className = 'flex-1 py-2 font-bold rounded-xl bg-blue-600 text-white shadow transition flex items-center justify-center gap-1.5';
+        pinTab.className = 'flex-1 py-2 font-bold rounded-xl text-slate-400 hover:text-slate-200 transition flex items-center justify-center gap-1.5';
+        formPwd.classList.remove('hidden');
+        formPin.classList.add('hidden');
+      } else {
+        pinTab.className = 'flex-1 py-2 font-bold rounded-xl bg-blue-600 text-white shadow transition flex items-center justify-center gap-1.5';
+        pwdTab.className = 'flex-1 py-2 font-bold rounded-xl text-slate-400 hover:text-slate-200 transition flex items-center justify-center gap-1.5';
+        formPin.classList.remove('hidden');
+        formPwd.classList.add('hidden');
+      }
+    }
+
+    function togglePasswordVisibility() {
+      const input = document.getElementById('login-password');
+      const icon = document.getElementById('pwd-eye-icon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-regular fa-eye-slash text-sm';
+      } else {
+        input.type = 'password';
+        icon.className = 'fa-regular fa-eye text-sm';
+      }
+    }
+
+    function handlePasswordLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value.trim().toLowerCase();
+      const password = document.getElementById('login-password').value;
+
+      const found = SYSTEM_USERS.find(u => u.username.toLowerCase() === username && u.password === password);
+      if (found) {
+        loginSuccess(found);
+      } else {
+        playBeep('error');
+        Swal.fire({
+          icon: 'error',
+          title: 'ເຂົ້າສູ່ລະບົບບໍ່ສຳເລັດ',
+          text: 'ຊື່ຜູ້ໃຊ້ ຫຼື ລະຫັດຜ່ານ ບໍ່ຖືກຕ້ອງ!',
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+    }
+
+    function pressPinKey(num) {
+      if (currentEnteredPin.length >= 4) return;
+      currentEnteredPin += num;
+      updatePinDisplay();
+      playBeep('success');
+
+      if (currentEnteredPin.length === 4) {
+        setTimeout(verifyAndLoginPin, 150);
+      }
+    }
+
+    function clearPinKey() {
+      currentEnteredPin = '';
+      updatePinDisplay();
+    }
+
+    function backspacePinKey() {
+      if (currentEnteredPin.length > 0) {
+        currentEnteredPin = currentEnteredPin.slice(0, -1);
+        updatePinDisplay();
+      }
+    }
+
+    function updatePinDisplay() {
+      for (let i = 1; i <= 4; i++) {
+        const dot = document.getElementById('pin-dot-' + i);
+        if (dot) {
+          if (i <= currentEnteredPin.length) {
+            dot.className = 'w-4 h-4 rounded-full border-2 border-blue-400 bg-blue-500 shadow-md shadow-blue-500/50 scale-110 transition';
+          } else {
+            dot.className = 'w-4 h-4 rounded-full border-2 border-slate-600 bg-transparent transition';
+          }
+        }
+      }
+    }
+
+    function verifyAndLoginPin() {
+      const pin = currentEnteredPin;
+      const found = SYSTEM_USERS.find(u => u.pin === pin);
+      if (found) {
+        loginSuccess(found);
+      } else {
+        playBeep('error');
+        Swal.fire({
+          icon: 'error',
+          title: 'ລະຫັດ PIN ບໍ່ຖືກຕ້ອງ',
+          text: 'ກະລຸນາກວດສອບ PIN (Super Admin: 9999, Admin: 8888, Cashier: 1234)',
+          timer: 2500,
+          showConfirmButton: false
+        });
+        clearPinKey();
+      }
+    }
+
+    function loginSuccess(user) {
+      state.currentUser = user;
+      const remember = document.getElementById('login-remember-me') && document.getElementById('login-remember-me').checked;
+      if (remember) {
+        localStorage.setItem('nnpos_current_user', JSON.stringify(user));
+      } else {
+        sessionStorage.setItem('nnpos_current_user', JSON.stringify(user));
+      }
+
+      // Hide login screen
+      const loginScreen = document.getElementById('login-screen');
+      if (loginScreen) loginScreen.classList.add('hidden');
+
+      playBeep('cash');
+      applyUserRolePermissions();
+
+      Swal.fire({
+        icon: 'success',
+        title: `ຍິນດີຕ້ອນຮັບ!`,
+        html: `<p class="text-sm font-semibold">${user.full_name}</p><span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${user.role_badge}">${user.role_label}</span>`,
+        timer: 1800,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+      });
+    }
+
+    function applyUserRolePermissions() {
+      const user = state.currentUser;
+      if (!user) return;
+
+      const cashierNameEl = document.getElementById('cashier-name');
+      const roleLabelEl = document.getElementById('cashier-role-label');
+      const roleIconEl = document.getElementById('user-role-icon');
+      const avatarBox = document.getElementById('user-avatar-icon');
+
+      if (cashierNameEl) cashierNameEl.innerText = user.full_name;
+      if (roleLabelEl) roleLabelEl.innerText = user.role_label;
+      if (roleIconEl) roleIconEl.className = `fa-solid ${user.icon}`;
+      if (avatarBox) avatarBox.className = `w-6 h-6 rounded-lg bg-gradient-to-tr ${user.avatar_bg} flex items-center justify-center text-[10px] text-white font-bold shadow-sm`;
+
+      // Update Lock indicators on header buttons for Cashier
+      const lockRestock = document.getElementById('badge-lock-restock');
+      const lockReport = document.getElementById('badge-lock-report');
+
+      if (!user.can_restock) {
+        if (lockRestock) lockRestock.classList.remove('hidden');
+      } else {
+        if (lockRestock) lockRestock.classList.add('hidden');
+      }
+
+      if (!user.can_report) {
+        if (lockReport) lockReport.classList.remove('hidden');
+      } else {
+        if (lockReport) lockReport.classList.add('hidden');
+      }
+    }
+
+    function confirmLogout() {
+      Swal.fire({
+        title: 'ອອກຈາກລະບົບ?',
+        text: 'ທ່ານຕ້ອງການອອກຈາກລະບົບ NN POS ແທ້ບໍ່?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'ອອກຈາກລະບົບ',
+        cancelButtonText: 'ຍົກເລີກ',
+        confirmButtonColor: '#e11d48',
+        cancelButtonColor: '#64748b'
+      }).then((res) => {
+        if (res.isConfirmed) {
+          state.currentUser = null;
+          localStorage.removeItem('nnpos_current_user');
+          sessionStorage.removeItem('nnpos_current_user');
+          clearPinKey();
+          showLoginScreen();
+          playBeep('success');
+        }
+      });
+    }
+
+    function checkPermission(permissionKey, actionName) {
+      if (!state.currentUser) {
+        showLoginScreen();
+        return false;
+      }
+
+      if (state.currentUser[permissionKey]) {
+        return true;
+      }
+
+      // If user lacks permission (e.g. Cashier wanting to Restock or view Reports),
+      // allow Admin PIN Authorization!
+      Swal.fire({
+        icon: 'warning',
+        title: '🔒 ສິດທິບໍ່ພຽງພໍ',
+        html: `
+          <div class="text-left space-y-2 text-xs">
+            <p class="text-slate-600 font-medium">ບັນຊີປັດຈຸບັນ: <b class="text-slate-800">${state.currentUser.full_name} (${state.currentUser.role_label})</b></p>
+            <p class="text-slate-500">ການ <b>${actionName}</b> ສະຫງວນໄວ້ສະເພາະ <b>Admin</b> ຫຼື <b>Super Admin</b> ເທົ່ານັ້ນ.</p>
+            <div class="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-800">
+              <span class="font-bold">🔑 ປົດລັອກຊົ່ວຄາວ:</span> ໃຫ້ຜູ້ຈັດການປ້ອນ PIN ຂອງ Admin (8888) ຫຼື Super Admin (9999) ເພື່ອດຳເນີນການຕໍ່.
+            </div>
+          </div>
+        `,
+        input: 'password',
+        inputPlaceholder: 'ປ້ອນ PIN 4 ຫຼັກ ຂອງ Admin...',
+        inputAttributes: {
+          maxlength: '4',
+          inputmode: 'numeric',
+          pattern: '[0-9]*',
+          style: 'text-align: center; letter-spacing: 0.3em; font-size: 1.25rem; font-family: monospace;'
+        },
+        showCancelButton: true,
+        confirmButtonText: 'ປົດລັອກອະນຸມັດ',
+        cancelButtonText: 'ຍົກເລີກ',
+        confirmButtonColor: '#2563eb',
+        preConfirm: (pinVal) => {
+          const authorizedAdmin = SYSTEM_USERS.find(u => (u.role === 'ADMIN' || u.role === 'SUPERADMIN') && u.pin === String(pinVal).trim());
+          if (!authorizedAdmin) {
+            Swal.showValidationMessage('ລະຫັດ PIN ບໍ່ຖືກຕ້ອງ ຫຼື ບໍ່ແມ່ນ Admin!');
+            return false;
+          }
+          return authorizedAdmin;
+        }
+      }).then((result) => {
+        if (result.isConfirmed && result.value) {
+          playBeep('success');
+          Swal.fire({
+            icon: 'success',
+            title: 'ອະນຸມັດສຳເລັດ!',
+            text: `ອະນຸມັດໂດຍ ${result.value.full_name}`,
+            timer: 1500,
+            showConfirmButton: false
+          }).then(() => {
+            if (permissionKey === 'can_restock') {
+              document.getElementById('restock-modal').classList.remove('hidden');
+              const today = new Date().toISOString().split('T')[0];
+              document.getElementById('restock-expiry-date').min = today;
+            } else if (permissionKey === 'can_report') {
+              openDailyReportModalUnlocked();
+            } else if (permissionKey === 'can_config') {
+              promptForGasApiUrlUnlocked();
+            }
+          });
+        }
+      });
+
+      return false;
+    }
+
+    function openDailyReportModalUnlocked() {
+      const modal = document.getElementById('report-modal');
+      const content = document.getElementById('report-modal-content');
+      modal.classList.remove('hidden');
+      if (state.isAppsScript) {
+        google.script.run
+          .withSuccessHandler(renderReportSummary)
+          .withFailureHandler(err => {
+            content.innerHTML = `<p class="text-rose-500 text-xs text-center">${err.message}</p>`;
+          })
+          .getDailySalesSummary();
+      } else if (GAS_API_URL) {
+        content.innerHTML = '<div class="py-8 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin text-2xl text-blue-500"></i><p class="text-xs mt-2">ກຳລັງດຶງລາຍງານຈາກ Google Sheets...</p></div>';
+        fetch(`${GAS_API_URL}?action=getDailySalesSummary`)
+          .then(r => r.json())
+          .then(json => {
+            if (json.success && json.data) {
+              renderReportSummary(json.data);
+            } else {
+              content.innerHTML = `<p class="text-rose-500 text-xs text-center">${json.error || 'ບໍ່ສາມາດດຶງລາຍງານໄດ້'}</p>`;
+            }
+          })
+          .catch(err => {
+            content.innerHTML = `<p class="text-rose-500 text-xs text-center">${err.message}</p>`;
+          });
+      }
+    }
+
+    function promptForGasApiUrlUnlocked() {
+      Swal.fire({
+        title: 'ຕັ້ງຄ່າລິ້ງ Google Sheets Web App',
+        html: `
+          <div class="text-xs text-slate-500 text-left mb-3">
+            ກະລຸນາວາງລິ້ງ <b>Web App URL</b> ທີ່ໄດ້ຈາກການ Deploy ໃນ Google Apps Script ເພື່ອເຊື່ອມຕໍ່ຖານຂໍ້ມູນ:
+          </div>
+          <input id="swal-gas-url" class="swal2-input text-xs" placeholder="https://script.google.com/macros/s/.../exec" value="${GAS_API_URL}">
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'ບັນທຶກ & ເຊື່ອມຕໍ່',
+        cancelButtonText: 'ຍົກເລີກ',
+        confirmButtonColor: '#2563eb',
+        preConfirm: () => {
+          const val = document.getElementById('swal-gas-url').value.trim();
+          if (!val) {
+            Swal.showValidationMessage('ກະລຸນາໃສ່ Web App URL');
+          }
+          return val;
+        }
+      }).then((res) => {
+        if (res.isConfirmed && res.value) {
+          setGasApiUrl(res.value);
+          Swal.fire('ສຳເລັດ!', 'ບັນທຶກລິ້ງ API ແລະ ກຳລັງໂຫຼດຂໍ້ມູນສິນຄ້າ...', 'success');
+        }
+      });
     }
   </script>
 </body>

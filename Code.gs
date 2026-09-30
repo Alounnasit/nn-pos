@@ -70,6 +70,8 @@ function doGet(e) {
       result = { success: true, data: getPOSInitialData() };
     } else if (action === 'getDailySalesSummary') {
       result = { success: true, data: getDailySalesSummary() };
+    } else if (action === 'loginUser') {
+      result = loginUser(e.parameter);
     }
   } catch (err) {
     result = { success: false, error: err.message || String(err) };
@@ -104,6 +106,8 @@ function doPost(e) {
       result = { success: true, data: getPOSInitialData() };
     } else if (action === 'getDailySalesSummary') {
       result = { success: true, data: getDailySalesSummary() };
+    } else if (action === 'loginUser') {
+      result = loginUser(payload);
     }
   } catch (err) {
     result = { success: false, error: err.message || String(err) };
@@ -721,3 +725,67 @@ function showLowStockAlert() {
 
   SpreadsheetApp.getUi().alert('⚠️ ແຈ້ງເຕືອນສິນຄ້າໃກ້ໝົດສະຕ໋ອກ', msg, SpreadsheetApp.getUi().ButtonSet.OK);
 }
+
+/**
+ * ------------------------------------------------------------------------------
+ * 👥 7. ລະບົບຢືນຢັນຕົວຕົນຜູ້ໃຊ້ (Super Admin, Admin, Cashier)
+ * ------------------------------------------------------------------------------
+ */
+const SYSTEM_USERS = [
+  {
+    user_id: 'USR-001',
+    username: 'superadmin',
+    password: 'superadmin123',
+    pin: '9999',
+    full_name: 'ເຈົ້າຂອງຮ້ານ (Super Admin)',
+    role: 'SUPERADMIN'
+  },
+  {
+    user_id: 'USR-002',
+    username: 'admin',
+    password: 'admin123',
+    pin: '8888',
+    full_name: 'ຜູ້ຈັດການ (Store Admin)',
+    role: 'ADMIN'
+  },
+  {
+    user_id: 'USR-003',
+    username: 'cashier',
+    password: 'cashier123',
+    pin: '1234',
+    full_name: 'ພະນັກງານຂາຍ (Cashier)',
+    role: 'CASHIER'
+  }
+];
+
+function loginUser(credentials) {
+  try {
+    const creds = credentials || {};
+    const username = (creds.username || '').toString().trim().toLowerCase();
+    const password = (creds.password || '').toString();
+    const pin = (creds.pin || '').toString().trim();
+
+    let found = null;
+    if (pin) {
+      found = SYSTEM_USERS.find(u => u.pin === pin);
+    } else if (username) {
+      found = SYSTEM_USERS.find(u => u.username.toLowerCase() === username && u.password === password);
+    }
+
+    if (found) {
+      return {
+        success: true,
+        user: {
+          user_id: found.user_id,
+          username: found.username,
+          full_name: found.full_name,
+          role: found.role
+        }
+      };
+    }
+    return { success: false, error: 'ຊື່ຜູ້ໃຊ້ ຫຼື ລະຫັດຜ່ານ ບໍ່ຖືກຕ້ອງ' };
+  } catch (err) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
