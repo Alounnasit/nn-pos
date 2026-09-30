@@ -657,48 +657,264 @@
     </div>
   </div>
 
-  <!-- ================= RESTOCK MODAL ================= -->
-  <div id="restock-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col fade-in">
-      <div class="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
-        <h3 class="font-bold text-sm flex items-center gap-2">
-          <i class="fa-solid fa-boxes-stacked text-amber-400"></i>
-          <span>ຮັບສິນຄ້າໃໝ່ເຂົ້າສາງ (New Batch)</span>
-        </h3>
-        <button onclick="closeRestockModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+  <!-- ================= RESTOCK MODAL (ຮັບສິນຄ້າເຂົ້າສາງ) ================= -->
+  <div id="restock-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col fade-in my-auto max-h-[95vh]">
+      <!-- Header -->
+      <div class="px-5 py-3.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0 border-b border-indigo-900/50">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm border border-amber-500/30">
+            <i class="fa-solid fa-boxes-stacked"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm leading-tight">ຮັບສິນຄ້າເຂົ້າສາງ (Restock Goods)</h3>
+            <p class="text-[11px] text-slate-400">ສະແກນບາໂຄ້ດ ຫຼື ປ້ອນຂໍ້ມູນສິນຄ້າຮັບເຂົ້າ</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeRestockModal()" class="w-8 h-8 rounded-xl bg-slate-800/80 hover:bg-rose-600 text-slate-400 hover:text-white transition flex items-center justify-center text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
-      <form onsubmit="handleRestockSubmit(event)" class="p-5 space-y-3">
+
+      <!-- Form Body -->
+      <form id="restock-form" onsubmit="handleRestockSubmit(event)" class="p-5 space-y-3.5 overflow-y-auto flex-1 text-slate-700">
+        
+        <!-- 1. Barcode Field (Scan from reader or Type) -->
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">ເລືອກສິນຄ້າ</label>
-          <select id="restock-product-id" required class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:border-blue-500 bg-white">
-            <!-- options inserted by JS -->
-          </select>
+          <label class="flex items-center justify-between text-xs font-semibold mb-1">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-barcode text-indigo-600"></i>
+              <span>ລະຫັດບາໂຄ້ດ (Barcode / PLU)</span>
+              <span class="text-rose-500">*</span>
+            </span>
+            <span id="restock-barcode-status" class="text-[10px] font-bold text-slate-400">ພ້ອມຮັບບາໂຄ້ດ</span>
+          </label>
+          <div class="relative">
+            <input 
+              type="text" 
+              id="restock-barcode" 
+              required 
+              autofocus 
+              placeholder="ຍິງບາໂຄ້ດຈາກປືນ / ມືຖື ຫຼື ພິມລະຫັດ..." 
+              oninput="handleRestockBarcodeInput(this.value)"
+              class="w-full pl-9 pr-24 py-2.5 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition bg-slate-50 focus:bg-white"
+            >
+            <i class="fa-solid fa-qrcode absolute left-3 top-3 text-slate-400 text-xs"></i>
+            <button 
+              type="button" 
+              onclick="triggerHandheldScanAssist()" 
+              class="absolute right-1.5 top-1.5 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
+            >
+              <i class="fa-solid fa-camera"></i>
+              <span>ສະແກນ</span>
+            </button>
+          </div>
+          <div id="restock-lookup-banner" class="hidden mt-1.5 p-2 rounded-xl text-[11px] font-medium transition"></div>
         </div>
 
+        <!-- 2. Product Name -->
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">ເລກ Batch / Lot (ປະໄວ້ວ່າງເພື່ອສ້າງອັດຕະໂນມັດ)</label>
-          <input type="text" id="restock-batch-id" placeholder="LOT-26XX" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300">
+          <label class="block text-xs font-semibold mb-1">
+            <span>ຊື່ສິນຄ້າ (Product Name)</span>
+            <span class="text-rose-500">*</span>
+          </label>
+          <input 
+            type="text" 
+            id="restock-product-name" 
+            required 
+            placeholder="ຕົວຢ່າງ: ເບຍລາວ ກະປ໋ອງ 330ml, ນ້ຳດື່ມ, ໝີ່ໄວໄວ..." 
+            class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition"
+          >
         </div>
 
+        <!-- 3. Category (Select existing OR create new) -->
+        <div>
+          <label class="block text-xs font-semibold mb-1">
+            <i class="fa-solid fa-layer-group text-indigo-600 mr-1"></i>
+            <span>ປະເພດສິນຄ້າ (Category)</span>
+            <span class="text-rose-500">*</span>
+          </label>
+          <div class="space-y-2">
+            <select 
+              id="restock-category-select" 
+              onchange="handleRestockCategorySelect(this.value)" 
+              required 
+              class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:border-indigo-500 bg-white"
+            >
+              <!-- Options populated by JS: existing categories + "+ ສ້າງປະເພດໃໝ່..." -->
+            </select>
+            <div id="restock-new-category-box" class="hidden">
+              <input 
+                type="text" 
+                id="restock-new-category-input" 
+                placeholder="ພິມຊື່ປະເພດສິນຄ້າໃໝ່ (ເຊັ່ນ: ເຄື່ອງດື່ມ, ອາຫານແຫ້ງ...)" 
+                class="w-full px-3 py-2 text-xs rounded-xl border border-indigo-400 bg-indigo-50/50 focus:bg-white focus:border-indigo-600 transition"
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Selling Unit (ກະປ໋ອງ, ແພັກ, ແກັດ, ແກ້ວ, etc.) -->
+        <div>
+          <label class="block text-xs font-semibold mb-1">
+            <i class="fa-solid fa-shapes text-indigo-600 mr-1"></i>
+            <span>ຮູບແບບການຂາຍ / ໜ່ວຍ (Selling Unit)</span>
+            <span class="text-rose-500">*</span>
+          </label>
+          
+          <!-- Preset Unit Pills for fast tap -->
+          <div class="flex flex-wrap gap-1.5 mb-2" id="restock-unit-pills">
+            <button type="button" onclick="selectRestockUnitPreset('ກະປ໋ອງ', 1)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">🥫 ກະປ໋ອງ</button>
+            <button type="button" onclick="selectRestockUnitPreset('ແກ້ວ', 1)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">🍾 ແກ້ວ</button>
+            <button type="button" onclick="selectRestockUnitPreset('ຕຸກ', 1)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">🧴 ຕຸກ</button>
+            <button type="button" onclick="selectRestockUnitPreset('ແພັກ', 6)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">📦 ແພັກ</button>
+            <button type="button" onclick="selectRestockUnitPreset('ແກັດ', 24)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">🏢 ແກັດ / ລັງ</button>
+            <button type="button" onclick="selectRestockUnitPreset('ຊອງ', 1)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">🏷️ ຊອງ</button>
+            <button type="button" onclick="selectRestockUnitPreset('ກ່ອງ', 1)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">🗃️ ກ່ອງ</button>
+            <button type="button" onclick="selectRestockUnitPreset('ກິໂລ', 1)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">⚖️ ກິໂລ</button>
+            <button type="button" onclick="selectRestockUnitPreset('ອື່ນໆ', 1)" class="unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition">✏️ ອື່ນໆ...</button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">ຊື່ໜ່ວຍຂາຍ</label>
+              <input 
+                type="text" 
+                id="restock-unit-name" 
+                required 
+                placeholder="ເຊັ່ນ: ກະປ໋ອງ, ແພັກ, ແກັດ..." 
+                class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:border-indigo-500 transition font-semibold"
+              >
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 mb-0.5">ຈຳນວນແປງໜ່ວຍຍ່ອຍ</label>
+              <div class="relative">
+                <input 
+                  type="number" 
+                  id="restock-conversion-qty" 
+                  min="1" 
+                  step="any" 
+                  value="1" 
+                  required 
+                  placeholder="1" 
+                  oninput="calcRestockMarginPreview()"
+                  class="w-full pl-3 pr-14 py-2 text-xs rounded-xl border border-slate-300 focus:border-indigo-500 transition font-mono"
+                >
+                <span class="absolute right-2.5 top-2 text-[10px] text-slate-400 pointer-events-none">ໜ່ວຍ/ຊຸດ</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Cost Price & Selling Price -->
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                <i class="fa-solid fa-coins text-amber-500 mr-1"></i>
+                <span>ລາຄາຕົ້ນທຶນ (Cost LAK)</span>
+                <span class="text-rose-500">*</span>
+              </label>
+              <input 
+                type="number" 
+                id="restock-cost" 
+                min="0" 
+                step="any" 
+                required 
+                placeholder="0" 
+                oninput="calcRestockMarginPreview()"
+                class="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:border-amber-500 bg-white"
+              >
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">
+                <i class="fa-solid fa-tag text-emerald-500 mr-1"></i>
+                <span>ລາຄາຂາຍ (Selling LAK)</span>
+                <span class="text-rose-500">*</span>
+              </label>
+              <input 
+                type="number" 
+                id="restock-selling-price" 
+                min="0" 
+                step="any" 
+                required 
+                placeholder="0" 
+                oninput="calcRestockMarginPreview()"
+                class="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:border-emerald-500 bg-white text-emerald-700"
+              >
+            </div>
+          </div>
+          
+          <!-- Profit & Margin badge -->
+          <div class="pt-1 flex items-center justify-between text-[11px] font-medium border-t border-slate-200/60">
+            <span class="text-slate-500">ກຳໄລຄາດຄະເນຕໍ່ໜ່ວຍ:</span>
+            <span id="restock-margin-badge" class="font-bold text-slate-600">0 LAK (0%)</span>
+          </div>
+        </div>
+
+        <!-- 6. Quantity Received & Expiry Date -->
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">ວັນໝົດອາຍຸ (FEFO)</label>
-            <input type="date" id="restock-expiry-date" required class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">
+              <i class="fa-solid fa-boxes-packing text-indigo-600 mr-1"></i>
+              <span>ຈຳນວນຮັບເຂົ້າ (Qty)</span>
+              <span class="text-rose-500">*</span>
+            </label>
+            <input 
+              type="number" 
+              id="restock-qty" 
+              min="1" 
+              step="any" 
+              required 
+              value="1" 
+              placeholder="1" 
+              oninput="calcRestockMarginPreview()"
+              class="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:border-indigo-500 bg-white"
+            >
+            <div id="restock-total-cost-text" class="text-[10px] text-slate-500 mt-1">ຍອດຕົ້ນທຶນລວມ: 0 LAK</div>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">ຈຳນວນຮັບເຂົ້າ (ໜ່ວຍຍ່ອຍ)</label>
-            <input type="number" id="restock-qty" min="1" step="any" required placeholder="0" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">
+              <i class="fa-regular fa-calendar-days text-slate-500 mr-1"></i>
+              <span>ວັນໝົດອາຍຸ (FEFO)</span>
+            </label>
+            <input 
+              type="date" 
+              id="restock-expiry-date" 
+              class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:border-indigo-500 bg-white"
+            >
+            <div class="text-[10px] text-slate-400 mt-1">ປະຫວ່າງໄດ້ຖ້າບໍ່ມີ</div>
           </div>
         </div>
 
+        <!-- Optional Batch ID -->
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">ຕົ້ນທຶນຕໍ່ໜ່ວຍຍ່ອຍ (LAK)</label>
-          <input type="number" id="restock-cost" min="0" required placeholder="0" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300">
+          <label class="block text-[11px] text-slate-500 mb-1">ເລກ Batch / Lot (ປະຫວ່າງໄວ້ເພື່ອສ້າງອັດຕະໂນມັດ)</label>
+          <input 
+            type="text" 
+            id="restock-batch-id" 
+            placeholder="LOT-26XX (Auto-generated)" 
+            class="w-full px-3 py-1.5 text-xs font-mono rounded-xl border border-slate-200 bg-slate-50 text-slate-600"
+          >
         </div>
 
-        <div class="pt-3 flex gap-2">
-          <button type="button" onclick="closeRestockModal()" class="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">ຍົກເລີກ</button>
-          <button type="submit" class="flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md">ບັນທຶກເຂົ້າສາງ</button>
+        <!-- Submit & Cancel Footer Buttons -->
+        <div class="pt-3 flex gap-2 shrink-0 border-t border-slate-100">
+          <button 
+            type="button" 
+            onclick="closeRestockModal()" 
+            class="flex-1 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition"
+          >
+            ຍົກເລີກ
+          </button>
+          <button 
+            type="submit" 
+            id="restock-submit-btn" 
+            class="flex-1 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
+          >
+            <i class="fa-solid fa-circle-check"></i>
+            <span>ບັນທຶກຮັບສິນຄ້າເຂົ້າສາງ</span>
+          </button>
         </div>
       </form>
     </div>
@@ -1239,6 +1455,13 @@
             ກະລຸນາວາງລິ້ງ <b>Web App URL</b> ທີ່ໄດ້ຈາກການ Deploy ໃນ Google Apps Script ເພື່ອເຊື່ອມຕໍ່ຖານຂໍ້ມູນ:
           </div>
           <input id="swal-gas-url" class="swal2-input text-xs" placeholder="https://script.google.com/macros/s/.../exec" value="${GAS_API_URL}">
+          <div class="mt-4 pt-3 border-t border-slate-200 flex justify-between items-center">
+            <span class="text-[11px] text-slate-500">ຈັດການຖານຂໍ້ມູນ:</span>
+            <button type="button" onclick="Swal.close(); clearAllSampleDataFromSystem()" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold border border-rose-200 transition flex items-center gap-1 shadow-sm">
+              <i class="fa-solid fa-trash-can"></i>
+              <span>ລຶບສິນຄ້າຕົວຢ່າງທັງໝົດ</span>
+            </button>
+          </div>
         `,
         showCancelButton: true,
         confirmButtonText: 'ບັນທຶກ & ເຊື່ອມຕໍ່',
@@ -1298,46 +1521,24 @@
     }
 
     function loadFallbackMockData() {
+      // Clear dummy samples: load only custom products stored in localStorage, or start clean empty
+      const localProducts = JSON.parse(localStorage.getItem('nn_pos_local_products') || '[]');
+      const localUnits = JSON.parse(localStorage.getItem('nn_pos_local_units') || '[]');
+      const localCategories = JSON.parse(localStorage.getItem('nn_pos_local_categories') || '["ທັງໝົດ", "ເຄື່ອງດື່ມ", "ອາຫານແຫ້ງ", "ອາຫານສົດ", "ຂອງໃຊ້ທົ່ວໄປ"]');
+
       const mockData = {
-        products: [
-            { product_id: 'P001', name_lo: 'ເບຍລາວ ກະປ໋ອງ 330ml', category: 'ເຄື່ອງດື່ມ', base_uom: 'ກະປ໋ອງ', is_weighable: false, plu_code: '', min_stock: 48, total_stock: 144, next_expiry: '2026-11-30', units: [] },
-            { product_id: 'P002', name_lo: 'ນ້ຳດື່ມ ຫົວເສືອ 600ml', category: 'ເຄື່ອງດື່ມ', base_uom: 'ຕຸກ', is_weighable: false, plu_code: '', min_stock: 24, total_stock: 120, next_expiry: '2027-06-30', units: [] },
-            { product_id: 'P003', name_lo: 'ໝີ່ໄວໄວ ຕົ້ມຍຳກຸ້ງ', category: 'ອາຫານແຫ້ງ', base_uom: 'ຊອງ', is_weighable: false, plu_code: '', min_stock: 30, total_stock: 60, next_expiry: '2027-01-20', units: [] },
-            { product_id: 'P004', name_lo: 'ຊີ້ນໝູສາມຊັ້ນ (ຊັ່ງກິໂລ)', category: 'ອາຫານສົດ', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00105', min_stock: 5, total_stock: 15, next_expiry: '2026-10-05', units: [] },
-            { product_id: 'P005', name_lo: 'ໝາກກ້ຽງຫວານ (ຊັ່ງກິໂລ)', category: 'ໝາກໄມ້', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00106', min_stock: 10, total_stock: 25, next_expiry: '2026-10-10', units: [] },
-            { product_id: 'P006', name_lo: 'ໄຂ່ໄກ່ເບີ 1', category: 'ຂອງສົດ', base_uom: 'ຟອງ', is_weighable: false, plu_code: '', min_stock: 60, total_stock: 120, next_expiry: '2026-10-20', units: [] },
-            { product_id: 'P007', name_lo: 'ກາເຟດາວ 3in1 (ສີແດງ)', category: 'ເຄື່ອງດື່ມ', base_uom: 'ຊອງ', is_weighable: false, plu_code: '', min_stock: 50, total_stock: 100, next_expiry: '2027-08-30', units: [] },
-            { product_id: 'P008', name_lo: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', category: 'ນົມແລະເຄື່ອງດື່ມ', base_uom: 'ກ່ອງ', is_weighable: false, plu_code: '', min_stock: 36, total_stock: 48, next_expiry: '2026-12-15', units: [] },
-            { product_id: 'P009', name_lo: 'ເຄື່ອງດື່ມກະປ໋ອງແດງ (8857200400213)', category: 'ເຄື່ອງດື່ມ', base_uom: 'ກະປ໋ອງ', is_weighable: false, plu_code: '', min_stock: 24, total_stock: 60, next_expiry: '2027-12-31', units: [] }
-          ],
-          units: [
-            { barcode: '8850001', product_id: 'P001', unit_name: 'ກະປ໋ອງ', conversion_qty: 1, selling_price: 15000, product_name: 'ເບຍລາວ ກະປ໋ອງ 330ml', base_uom: 'ກະປ໋ອງ' },
-            { barcode: '8850002', product_id: 'P001', unit_name: 'ແພັກ (6 ກະປ໋ອງ)', conversion_qty: 6, selling_price: 88000, product_name: 'ເບຍລາວ ກະປ໋ອງ 330ml', base_uom: 'ກະປ໋ອງ' },
-            { barcode: '8850003', product_id: 'P001', unit_name: 'ແກັດ (24 ກະປ໋ອງ)', conversion_qty: 24, selling_price: 340000, product_name: 'ເບຍລາວ ກະປ໋ອງ 330ml', base_uom: 'ກະປ໋ອງ' },
-            { barcode: '8850004', product_id: 'P002', unit_name: 'ຕຸກ', conversion_qty: 1, selling_price: 5000, product_name: 'ນ້ຳດື່ມ ຫົວເສືອ 600ml', base_uom: 'ຕຸກ' },
-            { barcode: '8850005', product_id: 'P002', unit_name: 'ແພັກ (12 ຕຸກ)', conversion_qty: 12, selling_price: 55000, product_name: 'ນ້ຳດື່ມ ຫົວເສືອ 600ml', base_uom: 'ຕຸກ' },
-            { barcode: '8850006', product_id: 'P003', unit_name: 'ຊອງ', conversion_qty: 1, selling_price: 4000, product_name: 'ໝີ່ໄວໄວ ຕົ້ມຍຳກຸ້ງ', base_uom: 'ຊອງ' },
-            { barcode: '8850007', product_id: 'P003', unit_name: 'ແພັກ (10 ຊອງ)', conversion_qty: 10, selling_price: 38000, product_name: 'ໝີ່ໄວໄວ ຕົ້ມຍຳກຸ້ງ', base_uom: 'ຊອງ' },
-            { barcode: '00105', product_id: 'P004', unit_name: 'ກິໂລກຣາມ', conversion_qty: 1, selling_price: 95000, product_name: 'ຊີ້ນໝູສາມຊັ້ນ (ຊັ່ງກິໂລ)', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00105' },
-            { barcode: '00106', product_id: 'P005', unit_name: 'ກິໂລກຣາມ', conversion_qty: 1, selling_price: 35000, product_name: 'ໝາກກ້ຽງຫວານ (ຊັ່ງກິໂລ)', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00106' },
-            { barcode: '8850008', product_id: 'P006', unit_name: 'ຟອງ', conversion_qty: 1, selling_price: 2500, product_name: 'ໄຂ່ໄກ່ເບີ 1', base_uom: 'ຟອງ' },
-            { barcode: '8850009', product_id: 'P006', unit_name: 'ແຕະ (30 ຟອງ)', conversion_qty: 30, selling_price: 72000, product_name: 'ໄຂ່ໄກ່ເບີ 1', base_uom: 'ຟອງ' },
-            { barcode: '8850010', product_id: 'P007', unit_name: 'ຊອງ', conversion_qty: 1, selling_price: 3000, product_name: 'ກາເຟດາວ 3in1 (ສີແດງ)', base_uom: 'ຊອງ' },
-            { barcode: '8850011', product_id: 'P007', unit_name: 'ຖົງໃຫຍ່ (25 ຊອງ)', conversion_qty: 25, selling_price: 70000, product_name: 'ກາເຟດາວ 3in1 (ສີແດງ)', base_uom: 'ຊອງ' },
-            { barcode: '8850012', product_id: 'P008', unit_name: 'ກ່ອງ', conversion_qty: 1, selling_price: 7000, product_name: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', base_uom: 'ກ່ອງ' },
-            { barcode: '8850013', product_id: 'P008', unit_name: 'ແພັກ (4 ກ່ອງ)', conversion_qty: 4, selling_price: 26000, product_name: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', base_uom: 'ກ່ອງ' },
-            { barcode: '8857200400213', product_id: 'P009', unit_name: 'ກະປ໋ອງ', conversion_qty: 1, selling_price: 12000, product_name: 'ເຄື່ອງດື່ມກະປ໋ອງແດງ (8857200400213)', base_uom: 'ກະປ໋ອງ' }
-          ],
-          categories: ['ທັງໝົດ', 'ເຄື່ອງດື່ມ', 'ອາຫານແຫ້ງ', 'ອາຫານສົດ', 'ໝາກໄມ້', 'ຂອງສົດ', 'ນົມແລະເຄື່ອງດື່ມ'],
-          storeInfo: state.storeInfo
-        };
+        products: localProducts,
+        units: localUnits,
+        categories: localCategories,
+        storeInfo: state.storeInfo
+      };
 
-        // link units to products
-        mockData.products.forEach(p => {
-          p.units = mockData.units.filter(u => u.product_id === p.product_id);
-        });
+      // link units to products
+      mockData.products.forEach(p => {
+        p.units = mockData.units.filter(u => u.product_id === p.product_id);
+      });
 
-        setTimeout(() => onDataLoaded(mockData), 300);
+      setTimeout(() => onDataLoaded(mockData), 200);
     }
 
     function onDataLoaded(data) {
@@ -1359,7 +1560,7 @@
 
       renderCategories();
       renderProductGrid();
-      populateRestockSelect();
+      populateRestockCategories();
     }
 
     function onDataLoadError(err) {
@@ -1422,12 +1623,28 @@
       });
 
       if (filtered.length === 0) {
-        grid.innerHTML = `
-          <div class="col-span-full py-12 text-center text-slate-400">
-            <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-300"></i>
-            <p class="text-sm">ບໍ່ພົບສິນຄ້າທີ່ກົງກັບເງື່ອນໄຂ</p>
-          </div>
-        `;
+        if (state.products.length === 0) {
+          grid.innerHTML = `
+            <div class="col-span-full py-16 text-center text-slate-400 flex flex-col items-center justify-center">
+              <div class="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-3 shadow-inner text-2xl">
+                <i class="fa-solid fa-boxes-packing"></i>
+              </div>
+              <h4 class="font-bold text-base text-slate-700 mb-1">ຍັງບໍ່ທັນມີລາຍການສິນຄ້າໃນລະບົບ</h4>
+              <p class="text-xs text-slate-500 max-w-sm mb-4">ກົດປຸ່ມ "ຮັບສິນຄ້າ (Restock)" ດ້ານເທິງ ຫຼື ຍິງບາໂຄ້ດຈາກມືຖືເພື່ອເພີ່ມສິນຄ້າໃໝ່ເຂົ້າສາງເລີ່ມຕົ້ນໄດ້ເລີຍ!</p>
+              <button onclick="openRestockModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>ຮັບສິນຄ້າເຂົ້າສາງຕອນນີ້</span>
+              </button>
+            </div>
+          `;
+        } else {
+          grid.innerHTML = `
+            <div class="col-span-full py-12 text-center text-slate-400">
+              <i class="fa-solid fa-box-open text-3xl mb-2 text-slate-300"></i>
+              <p class="text-sm">ບໍ່ພົບສິນຄ້າທີ່ກົງກັບເງື່ອນໄຂ</p>
+            </div>
+          `;
+        }
         return;
       }
 
@@ -2586,49 +2803,378 @@
     }
 
     /**
-     * RESTOCK MODAL
+     * =========================================================================
+     * 📥 RESTOCK & INBOUND GOODS (ຮັບສິນຄ້າເຂົ້າສາງ & ສ້າງສິນຄ້າໃໝ່)
+     * =========================================================================
      */
-    function openRestockModal() {
+    function openRestockModal(prefillBarcode = '') {
       if (!checkPermission('can_restock', 'ຮັບສິນຄ້າເຂົ້າສາງ (Restock)')) return;
-      document.getElementById('restock-modal').classList.remove('hidden');
+      
+      const modal = document.getElementById('restock-modal');
+      modal.classList.remove('hidden');
+
+      // Populate Categories
+      populateRestockCategories();
+
+      // Reset unit preset selection to default
+      selectRestockUnitPreset('ກະປ໋ອງ', 1);
+
+      // Reset date min and default
       const today = new Date().toISOString().split('T')[0];
-      document.getElementById('restock-expiry-date').min = today;
+      const expiryInput = document.getElementById('restock-expiry-date');
+      if (expiryInput) {
+        expiryInput.min = today;
+        const nextYear = new Date();
+        nextYear.setFullYear(nextYear.getFullYear() + 1);
+        expiryInput.value = nextYear.toISOString().split('T')[0];
+      }
+
+      // Reset batch id placeholder
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(-2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const batchInput = document.getElementById('restock-batch-id');
+      if (batchInput) batchInput.placeholder = `LOT-${yy}${mm}${dd}`;
+
+      const barcodeInput = document.getElementById('restock-barcode');
+      if (prefillBarcode) {
+        barcodeInput.value = prefillBarcode;
+        handleRestockBarcodeInput(prefillBarcode);
+      } else {
+        barcodeInput.value = '';
+        document.getElementById('restock-product-name').value = '';
+        document.getElementById('restock-cost').value = '';
+        document.getElementById('restock-selling-price').value = '';
+        document.getElementById('restock-qty').value = '1';
+        handleRestockBarcodeInput('');
+        setTimeout(() => barcodeInput.focus(), 100);
+      }
     }
 
     function closeRestockModal() {
       document.getElementById('restock-modal').classList.add('hidden');
     }
 
-    function populateRestockSelect() {
-      const select = document.getElementById('restock-product-id');
-      select.innerHTML = state.products.map(p => `
-        <option value="${p.product_id}">${p.name_lo} (${p.product_id})</option>
-      `).join('');
+    function populateRestockCategories(selectedCategory = '') {
+      const select = document.getElementById('restock-category-select');
+      if (!select) return;
+
+      const defaultCats = ['ເຄື່ອງດື່ມ', 'ອາຫານແຫ້ງ', 'ອາຫານສົດ', 'ຂອງໃຊ້ທົ່ວໄປ', 'ຂະໜົມ/ຂອງກິນຫຼິ້ນ', 'ຢາ/ສຸຂະພາບ'];
+      const combined = Array.from(new Set([
+        ...state.categories.filter(c => c && c !== 'ທັງໝົດ'),
+        ...defaultCats
+      ]));
+
+      select.innerHTML = `
+        <option value="" disabled ${!selectedCategory ? 'selected' : ''}>-- ເລືອກປະເພດສິນຄ້າ --</option>
+        ${combined.map(c => `<option value="${c}" ${c === selectedCategory ? 'selected' : ''}>${c}</option>`).join('')}
+        <option value="__NEW__" class="font-bold text-indigo-600">+ ສ້າງປະເພດໃໝ່... (Create New Category)</option>
+      `;
+
+      handleRestockCategorySelect(select.value);
+    }
+
+    function handleRestockCategorySelect(val) {
+      const box = document.getElementById('restock-new-category-box');
+      const input = document.getElementById('restock-new-category-input');
+      if (val === '__NEW__') {
+        box.classList.remove('hidden');
+        input.required = true;
+        input.focus();
+      } else {
+        box.classList.add('hidden');
+        input.required = false;
+        input.value = '';
+      }
+    }
+
+    function selectRestockUnitPreset(unitName, defaultConv = 1) {
+      const nameInput = document.getElementById('restock-unit-name');
+      const convInput = document.getElementById('restock-conversion-qty');
+
+      if (unitName === 'ອື່ນໆ') {
+        nameInput.value = '';
+        nameInput.focus();
+      } else {
+        nameInput.value = unitName;
+      }
+      convInput.value = defaultConv;
+
+      const pills = document.querySelectorAll('#restock-unit-pills button');
+      pills.forEach(p => {
+        if (p.innerText.includes(unitName)) {
+          p.className = 'unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-indigo-600 bg-indigo-600 text-white font-bold transition shadow-sm';
+        } else {
+          p.className = 'unit-preset-btn px-2.5 py-1 text-[11px] rounded-lg border border-slate-200 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50 font-medium transition text-slate-700';
+        }
+      });
+
+      calcRestockMarginPreview();
+    }
+
+    function handleRestockBarcodeInput(rawCode) {
+      const statusEl = document.getElementById('restock-barcode-status');
+      const banner = document.getElementById('restock-lookup-banner');
+
+      if (!rawCode) {
+        if (statusEl) {
+          statusEl.innerText = 'ພ້ອມຮັບບາໂຄ້ດ';
+          statusEl.className = 'text-[10px] font-bold text-slate-400';
+        }
+        if (banner) {
+          banner.className = 'hidden';
+          banner.innerHTML = '';
+        }
+        return;
+      }
+
+      rawCode = String(rawCode).trim();
+
+      // Check in barcodeMap or products
+      let unit = state.barcodeMap[rawCode];
+      let prod = null;
+
+      if (unit) {
+        prod = state.products.find(p => p.product_id === unit.product_id);
+      } else {
+        prod = state.products.find(p => p.product_id === rawCode || p.barcode === rawCode || p.plu_code === rawCode);
+        if (prod && prod.units && prod.units.length > 0) {
+          unit = prod.units[0];
+        }
+      }
+
+      if (unit || prod) {
+        // Existing Product Found!
+        if (statusEl) {
+          statusEl.innerText = 'ພົບໃນລະບົບແລ້ວ ✅';
+          statusEl.className = 'text-[10px] font-bold text-emerald-600';
+        }
+
+        const pName = (unit && unit.product_name) || (prod && prod.name_lo) || '';
+        if (banner) {
+          banner.className = 'mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-between';
+          banner.innerHTML = `
+            <span><i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i> ພົບສິນຄ້າ: <b>${pName}</b></span>
+            <span class="text-[10px] font-mono bg-emerald-100 px-1.5 py-0.5 rounded text-emerald-700 font-bold">ສະຕ໋ອກເກົ່າ: ${prod ? prod.total_stock : 0}</span>
+          `;
+        }
+
+        document.getElementById('restock-product-name').value = pName;
+        if (prod && prod.category) {
+          populateRestockCategories(prod.category);
+        }
+        if (unit) {
+          selectRestockUnitPreset(unit.unit_name || 'ອັນ', unit.conversion_qty || 1);
+          if (unit.selling_price) {
+            document.getElementById('restock-selling-price').value = unit.selling_price;
+          }
+        }
+
+        calcRestockMarginPreview();
+        const qtyInput = document.getElementById('restock-qty');
+        if (qtyInput) qtyInput.focus();
+      } else {
+        // New Product!
+        if (statusEl) {
+          statusEl.innerText = 'ສິນຄ້າໃໝ່ ✨';
+          statusEl.className = 'text-[10px] font-bold text-indigo-600';
+        }
+
+        if (banner) {
+          banner.className = 'mt-1.5 p-2 rounded-xl text-[11px] font-medium bg-indigo-50 text-indigo-800 border border-indigo-200 flex items-center gap-1.5';
+          banner.innerHTML = `
+            <i class="fa-solid fa-sparkles text-indigo-600"></i>
+            <span>ບາໂຄ້ດໃໝ່: ກະລຸນາໃສ່ຊື່, ປະເພດ ແລະ ລາຄາຂາຍ</span>
+          `;
+        }
+
+        const nameInput = document.getElementById('restock-product-name');
+        if (nameInput && !nameInput.value) {
+          nameInput.focus();
+        }
+        calcRestockMarginPreview();
+      }
+    }
+
+    function calcRestockMarginPreview() {
+      const costInput = document.getElementById('restock-cost');
+      const sellingInput = document.getElementById('restock-selling-price');
+      const qtyInput = document.getElementById('restock-qty');
+      const badge = document.getElementById('restock-margin-badge');
+      const totalCostText = document.getElementById('restock-total-cost-text');
+
+      if (!costInput || !sellingInput || !badge) return;
+
+      const cost = parseFloat(costInput.value) || 0;
+      const selling = parseFloat(sellingInput.value) || 0;
+      const qty = parseFloat(qtyInput ? qtyInput.value : 1) || 0;
+
+      if (totalCostText) {
+        totalCostText.innerText = `ຍອດຕົ້ນທຶນລວມ: ${formatMoney(cost * qty)} LAK`;
+      }
+
+      if (selling > 0 && cost > 0) {
+        const profit = selling - cost;
+        const margin = ((profit / cost) * 100).toFixed(1);
+        if (profit >= 0) {
+          badge.innerText = `+${formatMoney(profit)} LAK (+${margin}%)`;
+          badge.className = 'font-bold text-emerald-600';
+        } else {
+          badge.innerText = `${formatMoney(profit)} LAK (${margin}%) ຂາດທຶນ!`;
+          badge.className = 'font-bold text-rose-600';
+        }
+      } else if (selling > 0) {
+        badge.innerText = `ລາຄາຂາຍ: ${formatMoney(selling)} LAK`;
+        badge.className = 'font-bold text-slate-600';
+      } else {
+        badge.innerText = '0 LAK (0%)';
+        badge.className = 'font-bold text-slate-500';
+      }
+    }
+
+    function triggerHandheldScanAssist() {
+      const barcodeInput = document.getElementById('restock-barcode');
+      openMobileCameraScanner();
+      const origDecoded = window.onBarcodeDecoded;
+      window.onBarcodeDecoded = (code) => {
+        closeCameraScannerModal();
+        if (barcodeInput) {
+          barcodeInput.value = code;
+          handleRestockBarcodeInput(code);
+        }
+        window.onBarcodeDecoded = origDecoded;
+      };
     }
 
     function handleRestockSubmit(e) {
       e.preventDefault();
+
+      const barcode = document.getElementById('restock-barcode').value.trim();
+      const prodName = document.getElementById('restock-product-name').value.trim();
+      const catSelect = document.getElementById('restock-category-select').value;
+      const newCatInput = document.getElementById('restock-new-category-input').value.trim();
+      const category = (catSelect === '__NEW__') ? newCatInput : catSelect;
+      const unitName = document.getElementById('restock-unit-name').value.trim() || 'ອັນ';
+      const convQty = parseFloat(document.getElementById('restock-conversion-qty').value) || 1;
+      const cost = parseFloat(document.getElementById('restock-cost').value) || 0;
+      const selling = parseFloat(document.getElementById('restock-selling-price').value) || 0;
+      const qty = parseFloat(document.getElementById('restock-qty').value) || 1;
+      const expiry = document.getElementById('restock-expiry-date').value;
+      const batchId = document.getElementById('restock-batch-id').value.trim();
+
+      if (!barcode) {
+        Swal.fire('ກະລຸນາປ້ອນບາໂຄ້ດ', 'ຍິງບາໂຄ້ດ ຫຼື ພິມລະຫັດສິນຄ້າ', 'warning');
+        return;
+      }
+      if (!prodName) {
+        Swal.fire('ກະລຸນາໃສ່ຊື່ສິນຄ້າ', 'ປ້ອນຊື່ສິນຄ້າເພື່ອບັນທຶກ', 'warning');
+        return;
+      }
+      if (!category) {
+        Swal.fire('ກະລຸນາເລືອກປະເພດ', 'ເລືອກ ຫຼື ສ້າງປະເພດສິນຄ້າໃໝ່', 'warning');
+        return;
+      }
+
       const batchData = {
-        product_id: document.getElementById('restock-product-id').value,
-        batch_id: document.getElementById('restock-batch-id').value,
-        expiry_date: document.getElementById('restock-expiry-date').value,
-        qty: parseFloat(document.getElementById('restock-qty').value),
-        cost_per_unit: parseFloat(document.getElementById('restock-cost').value)
+        barcode: barcode,
+        product_name: prodName,
+        category: category,
+        unit_name: unitName,
+        conversion_qty: convQty,
+        cost_per_unit: cost,
+        selling_price: selling,
+        qty: qty,
+        expiry_date: expiry,
+        batch_id: batchId
       };
+
+      // Optimistically update local application state
+      let existingUnit = state.barcodeMap[barcode];
+      let existingProd = null;
+
+      if (existingUnit) {
+        existingProd = state.products.find(p => p.product_id === existingUnit.product_id);
+      } else {
+        existingProd = state.products.find(p => p.name_lo.toLowerCase() === prodName.toLowerCase());
+      }
+
+      if (!existingProd) {
+        const nextId = 'P' + String(state.products.length + 1).padStart(3, '0');
+        existingProd = {
+          product_id: nextId,
+          name_lo: prodName,
+          category: category,
+          base_uom: unitName,
+          is_weighable: false,
+          plu_code: '',
+          min_stock: 10,
+          total_stock: qty * convQty,
+          next_expiry: expiry || null,
+          units: []
+        };
+        state.products.push(existingProd);
+      } else {
+        existingProd.total_stock = (existingProd.total_stock || 0) + (qty * convQty);
+        existingProd.name_lo = prodName;
+        existingProd.category = category;
+        if (expiry && (!existingProd.next_expiry || expiry < existingProd.next_expiry)) {
+          existingProd.next_expiry = expiry;
+        }
+      }
+
+      batchData.product_id = existingProd.product_id;
+
+      if (!existingUnit) {
+        existingUnit = {
+          barcode: barcode,
+          product_id: existingProd.product_id,
+          unit_name: unitName,
+          conversion_qty: convQty,
+          selling_price: selling,
+          product_name: prodName,
+          base_uom: existingProd.base_uom
+        };
+        state.units.push(existingUnit);
+        state.barcodeMap[barcode] = existingUnit;
+        existingProd.units.push(existingUnit);
+      } else {
+        existingUnit.unit_name = unitName;
+        existingUnit.conversion_qty = convQty;
+        existingUnit.selling_price = selling;
+        existingUnit.product_name = prodName;
+      }
+
+      // Add category if new
+      if (!state.categories.includes(category)) {
+        state.categories.push(category);
+      }
+
+      // Persist to local storage
+      localStorage.setItem('nn_pos_local_products', JSON.stringify(state.products));
+      localStorage.setItem('nn_pos_local_units', JSON.stringify(state.units));
+      localStorage.setItem('nn_pos_local_categories', JSON.stringify(state.categories));
+
+      renderCategories();
+      renderProductGrid();
 
       Swal.fire({
         title: 'ກຳລັງບັນທຶກເຂົ້າສາງ...',
+        text: `${prodName} (${qty} ${unitName})`,
         didOpen: () => Swal.showLoading()
       });
 
       if (state.isAppsScript) {
         google.script.run
           .withSuccessHandler((res) => {
-            Swal.fire('ສຳເລັດ', res.message, 'success');
+            Swal.fire('ສຳເລັດ!', res.message || 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍແລ້ວ', 'success');
             closeRestockModal();
             initCatalogData();
           })
-          .withFailureHandler(err => Swal.fire('ຂໍ້ຜິດພາດ', err.message, 'error'))
+          .withFailureHandler(err => {
+            Swal.fire('ບັນທຶກສະເພາະເຄື່ອງ (Local)', 'ບັນທຶກສິນຄ້າໃນເຄື່ອງຮຽບຮ້ອຍ ແຕ່ບໍ່ສາມາດເຊື່ອມຕໍ່ Google Sheets: ' + err.message, 'warning');
+            closeRestockModal();
+          })
           .restockBatch(batchData);
       } else if (GAS_API_URL) {
         fetch(GAS_API_URL, {
@@ -2638,19 +3184,89 @@
         .then(r => r.json())
         .then(json => {
           if (json.success) {
-            Swal.fire('ສຳເລັດ', (json.data && json.data.message) || 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍ', 'success');
+            Swal.fire('ສຳເລັດ!', (json.data && json.data.message) || 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍແລ້ວ', 'success');
             closeRestockModal();
             initCatalogData();
           } else {
-            Swal.fire('ຂໍ້ຜິດພາດ', json.error || 'ບັນທຶກບໍ່ສຳເລັດ', 'error');
+            Swal.fire('ສຳເລັດ (Local)', 'ບັນທຶກສິນຄ້າໃນເຄື່ອງຮຽບຮ້ອຍແລ້ວ (' + (json.error || '') + ')', 'info');
+            closeRestockModal();
           }
         })
-        .catch(err => Swal.fire('ຂໍ້ຜິດພາດ', err.message, 'error'));
+        .catch(err => {
+          Swal.fire('ສຳເລັດ (Local)', 'ບັນທຶກສິນຄ້າໃນເຄື່ອງຮຽບຮ້ອຍແລ້ວ (ອອບໄລນ໌)', 'success');
+          closeRestockModal();
+        });
       } else {
         setTimeout(() => {
-          Swal.fire('ສຳເລັດ', 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍແລ້ວ (ໂໝດທົດລອງ)', 'success');
+          Swal.fire('ສຳເລັດ!', 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍແລ້ວ (ພ້ອມຂາຍໜ້າຮ້ານ)', 'success');
           closeRestockModal();
-        }, 500);
+        }, 300);
+      }
+    }
+
+    /**
+     * 🧹 CLEAR ALL SAMPLE DATA (ລຶບສິນຄ້າຕົວຢ່າງທັງໝົດ)
+     */
+    async function clearAllSampleDataFromSystem() {
+      const result = await Swal.fire({
+        title: 'ຢືນຢັນລຶບສິນຄ້າຕົວຢ່າງທັງໝົດ?',
+        html: `
+          <div class="text-xs text-slate-600 text-left space-y-2">
+            <p>ລະບົບຈະລຶບຂໍ້ມູນສິນຄ້າຕົວຢ່າງທັງໝົດອອກຈາກລະບົບ ເພື່ອໃຫ້ຖານຂໍ້ມູນສະອາດ ແລະ ພ້ອມສຳລັບການປ້ອນສິນຄ້າຕົວຈິງຂອງທ່ານ.</p>
+            <p class="text-rose-600 font-bold">⚠️ ການດຳເນີນການນີ້ຈະລ້າງສິນຄ້າທັງໝົດໃນ Google Sheets ແລະ ໃນໜ້າຈໍ POS.</p>
+          </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '🧹 ແມ່ນ, ລຶບອອກທັງໝົດ',
+        cancelButtonText: 'ຍົກເລີກ',
+        confirmButtonColor: '#e11d48'
+      });
+
+      if (!result.isConfirmed) return;
+
+      Swal.fire({
+        title: 'ກຳລັງລຶບສິນຄ້າຕົວຢ່າງ...',
+        didOpen: () => Swal.showLoading()
+      });
+
+      // Clear local storage
+      localStorage.removeItem('nn_pos_local_products');
+      localStorage.removeItem('nn_pos_local_units');
+      localStorage.removeItem('nn_pos_local_categories');
+      state.products = [];
+      state.units = [];
+      state.barcodeMap = {};
+      state.categories = ['ທັງໝົດ'];
+      state.activeCategory = 'ທັງໝົດ';
+      renderCategories();
+      renderProductGrid();
+
+      if (state.isAppsScript) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            Swal.fire('ສຳເລັດ!', res.message || 'ລຶບຂໍ້ມູນສິນຄ້າຕົວຢ່າງອອກໝົດແລ້ວ', 'success');
+            initCatalogData();
+          })
+          .withFailureHandler(err => {
+            Swal.fire('ສຳເລັດ (Local)', 'ລຶບສິນຄ້າຕົວຢ່າງໃນໜ້າຈໍແລ້ວ: ' + err.message, 'info');
+          })
+          .clearAllDatabaseData();
+      } else if (GAS_API_URL) {
+        fetch(GAS_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'clearAllData' })
+        })
+        .then(r => r.json())
+        .then(json => {
+          Swal.fire('ສຳເລັດ!', (json.data && json.data.message) || json.message || 'ລຶບສິນຄ້າຕົວຢ່າງອອກຈາກ Google Sheets ຮຽບຮ້ອຍແລ້ວ!', 'success');
+          initCatalogData();
+        })
+        .catch(err => {
+          Swal.fire('ສຳເລັດ (Local)', 'ລຶບສິນຄ້າຕົວຢ່າງໃນໜ້າຈໍຮຽບຮ້ອຍແລ້ວ', 'success');
+        });
+      } else {
+        Swal.fire('ສຳເລັດ!', 'ລຶບສິນຄ້າຕົວຢ່າງອອກໝົດແລ້ວ! ຖານຂໍ້ມູນພ້ອມໃຊ້ງານ', 'success');
       }
     }
 
@@ -2999,30 +3615,15 @@
 
       // 1. RESTOCK Mode from Mobile
       if (targetMode === 'RESTOCK') {
-        openRestockModal();
-        let prod = null;
+        openRestockModal(rawCode);
+        playBeep('success');
         const unit = state.barcodeMap[rawCode];
         if (unit) {
-          prod = state.products.find(p => p.product_id === unit.product_id);
+          showRemoteScanToast(`📦 ຮັບສິນຄ້າ: ${unit.product_name || rawCode}`);
+          sendFeedbackToMobile(true, `ຮັບເຂົ້າ: ${unit.product_name || rawCode}`, rawCode);
         } else {
-          prod = state.products.find(p => p.product_id === rawCode || p.barcode === rawCode);
-        }
-
-        if (prod) {
-          const select = document.getElementById('restock-product-id');
-          if (select) select.value = prod.product_id;
-          const qtyInput = document.getElementById('restock-qty');
-          if (qtyInput) {
-            qtyInput.focus();
-            qtyInput.select();
-          }
-          playBeep('success');
-          showRemoteScanToast(`📦 ຮັບສິນຄ້າ: ${prod.name_lo}`);
-          sendFeedbackToMobile(true, `ຮັບເຂົ້າ: ${prod.name_lo}`, rawCode);
-        } else {
-          playBeep('error');
-          showRemoteScanToast(`⚠️ ບໍ່ພົບສິນຄ້າລະຫັດ: ${rawCode}`, true);
-          sendFeedbackToMobile(false, `ບໍ່ພົບລະຫັດ: ${rawCode}`, rawCode);
+          showRemoteScanToast(`✨ ບາໂຄ້ດໃໝ່: ${rawCode}`);
+          sendFeedbackToMobile(true, `ບາໂຄ້ດໃໝ່: ${rawCode}`, rawCode);
         }
         return;
       }

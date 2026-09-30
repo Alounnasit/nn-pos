@@ -43,6 +43,8 @@ function onOpen() {
     .addItem('3. ສ້າງ / ຣີເຊັດຕາຕະລາງຖານຂໍ້ມູນ (Auto Setup)', 'setupDatabaseSheets')
     .addItem('4. ສະຫຼຸບຍອດຂາຍປະຈຳວັນ (Daily Summary)', 'showDailySummaryAlert')
     .addItem('5. ກວດສອບສິນຄ້າໃກ້ໝົດສະຕ໋ອກ (Low Stock Alert)', 'showLowStockAlert')
+    .addSeparator()
+    .addItem('6. 🧹 ລຶບຂໍ້ມູນສິນຄ້າຕົວຢ່າງທັງໝົດ (Clear Sample Data)', 'clearAllDatabaseData')
     .addToUi();
 }
 
@@ -72,6 +74,8 @@ function doGet(e) {
       result = { success: true, data: getDailySalesSummary() };
     } else if (action === 'loginUser') {
       result = loginUser(e.parameter);
+    } else if (action === 'clearAllData') {
+      result = clearAllDatabaseData();
     }
   } catch (err) {
     result = { success: false, error: err.message || String(err) };
@@ -108,6 +112,8 @@ function doPost(e) {
       result = { success: true, data: getDailySalesSummary() };
     } else if (action === 'loginUser') {
       result = loginUser(payload);
+    } else if (action === 'clearAllData') {
+      result = clearAllDatabaseData();
     }
   } catch (err) {
     result = { success: false, error: err.message || String(err) };
@@ -160,19 +166,6 @@ function setupDatabaseSheets() {
   // ຕັ້ງ Format Text (@) ໃຫ້ product_id (A) ແລະ plu_code (F)
   shProd.getRange('A2:A1000').setNumberFormat('@');
   shProd.getRange('F2:F1000').setNumberFormat('@');
-
-  const sampleProducts = [
-    ['P001', 'ເບຍລາວ ກະປ໋ອງ 330ml', 'ເຄື່ອງດື່ມ', 'ກະປ໋ອງ', false, '', 48],
-    ['P002', 'ນ້ຳດື່ມ ຫົວເສືອ 600ml', 'ເຄື່ອງດື່ມ', 'ຕຸກ', false, '', 24],
-    ['P003', 'ໝີ່ໄວໄວ ຕົ້ມຍຳກຸ້ງ', 'ອາຫານແຫ້ງ', 'ຊອງ', false, '', 30],
-    ['P004', 'ຊີ້ນໝູສາມຊັ້ນ (ຊັ່ງກິໂລ)', 'ອາຫານສົດ', 'ກິໂລ', true, '00105', 5],
-    ['P005', 'ໝາກກ້ຽງຫວານ (ຊັ່ງກິໂລ)', 'ໝາກໄມ້', 'ກິໂລ', true, '00106', 10],
-    ['P006', 'ໄຂ່ໄກ່ເບີ 1', 'ຂອງສົດ', 'ຟອງ', false, '', 60],
-    ['P007', 'ກາເຟດາວ 3in1 (ສີແດງ)', 'ເຄື່ອງດື່ມ', 'ຊອງ', false, '', 50],
-    ['P008', 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', 'ນົມແລະເຄື່ອງດື່ມ', 'ກ່ອງ', false, '', 36],
-    ['P009', 'ເຄື່ອງດື່ມກະປ໋ອງແດງ (8857200400213)', 'ເຄື່ອງດື່ມ', 'ກະປ໋ອງ', false, '', 24]
-  ];
-  shProd.getRange(2, 1, sampleProducts.length, sampleProducts[0].length).setValues(sampleProducts);
   formatHeaderRow(shProd, '#1E3A8A');
 
   // 2. Product_Units Tab
@@ -189,26 +182,6 @@ function setupDatabaseSheets() {
   // ຕັ້ງ Format Text (@) ໃຫ້ barcode (A) ແລະ product_id (B)
   shUnits.getRange('A2:A2000').setNumberFormat('@');
   shUnits.getRange('B2:B2000').setNumberFormat('@');
-
-  const sampleUnits = [
-    ['8850001', 'P001', 'ກະປ໋ອງ', 1, 15000],
-    ['8850002', 'P001', 'ແພັກ (6 ກະປ໋ອງ)', 6, 88000],
-    ['8850003', 'P001', 'ແກັດ (24 ກະປ໋ອງ)', 24, 340000],
-    ['8850004', 'P002', 'ຕຸກ', 1, 5000],
-    ['8850005', 'P002', 'ແພັກ (12 ຕຸກ)', 12, 55000],
-    ['8850006', 'P003', 'ຊອງ', 1, 4000],
-    ['8850007', 'P003', 'ແພັກ (10 ຊອງ)', 10, 38000],
-    ['00105',   'P004', 'ກິໂລກຣາມ', 1, 95000],
-    ['00106',   'P005', 'ກິໂລກຣາມ', 1, 35000],
-    ['8850008', 'P006', 'ຟອງ', 1, 2500],
-    ['8850009', 'P006', 'ແຕະ (30 ຟອງ)', 30, 72000],
-    ['8850010', 'P007', 'ຊອງ', 1, 3000],
-    ['8850011', 'P007', 'ຖົງໃຫຍ່ (25 ຊອງ)', 25, 70000],
-    ['8850012', 'P008', 'ກ່ອງ', 1, 7000],
-    ['8850013', 'P008', 'ແພັກ (4 ກ່ອງ)', 4, 26000],
-    ['8857200400213', 'P009', 'ກະປ໋ອງ', 1, 12000]
-  ];
-  shUnits.getRange(2, 1, sampleUnits.length, sampleUnits[0].length).setValues(sampleUnits);
   formatHeaderRow(shUnits, '#0F766E');
 
   // 3. Inventory_Batches Tab (FEFO)
@@ -227,19 +200,6 @@ function setupDatabaseSheets() {
   shBatches.getRange('B2:B2000').setNumberFormat('@');
   shBatches.getRange('C2:C2000').setNumberFormat('yyyy-mm-dd');
   shBatches.getRange('F2:F2000').setNumberFormat('yyyy-mm-dd');
-
-  const sampleBatches = [
-    ['LOT-2601', 'P001', '2026-11-30', 11500, 48, '2026-09-01'],
-    ['LOT-2602', 'P001', '2027-03-15', 12000, 96, '2026-09-20'],
-    ['LOT-2603', 'P002', '2027-06-30', 3500, 120, '2026-09-10'],
-    ['LOT-2604', 'P003', '2027-01-20', 2800, 60, '2026-09-15'],
-    ['LOT-2605', 'P004', '2026-10-05', 75000, 15, '2026-09-28'],
-    ['LOT-2606', 'P005', '2026-10-10', 25000, 25, '2026-09-28'],
-    ['LOT-2607', 'P006', '2026-10-20', 1800, 120, '2026-09-25'],
-    ['LOT-2608', 'P007', '2027-08-30', 2100, 100, '2026-09-10'],
-    ['LOT-2609', 'P008', '2026-12-15', 5200, 48, '2026-09-22']
-  ];
-  shBatches.getRange(2, 1, sampleBatches.length, sampleBatches[0].length).setValues(sampleBatches);
   formatHeaderRow(shBatches, '#7C2D12');
 
   // 4. Sales_Header Tab
@@ -256,11 +216,6 @@ function setupDatabaseSheets() {
     'change_lak'
   ]);
   shHeader.getRange('A2:A5000').setNumberFormat('@');
-  
-  const sampleSalesHeader = [
-    ['INV-00001', '2026-09-29 15:00:00', 'ແຄັດເຊຍ 1', 103000, 'CASH', 105000, 2000]
-  ];
-  shHeader.getRange(2, 1, sampleSalesHeader.length, sampleSalesHeader[0].length).setValues(sampleSalesHeader);
   formatHeaderRow(shHeader, '#1E293B');
 
   // 5. Sales_Details Tab
@@ -280,12 +235,6 @@ function setupDatabaseSheets() {
   shDetails.getRange('A2:A10000').setNumberFormat('@');
   shDetails.getRange('B2:B10000').setNumberFormat('@');
   shDetails.getRange('C2:C10000').setNumberFormat('@');
-
-  const sampleSalesDetails = [
-    ['INV-00001', '8850001', 'P001', 'ເບຍລາວ (ກະປ໋ອງ)', 1, 15000, 11500, 15000],
-    ['INV-00001', '8850002', 'P001', 'ເບຍລາວ (ແພັກ 6)', 1, 88000, 69000, 88000]
-  ];
-  shDetails.getRange(2, 1, sampleSalesDetails.length, sampleSalesDetails[0].length).setValues(sampleSalesDetails);
   formatHeaderRow(shDetails, '#374151');
 
   // ລຶບ Sheet1 ທີ່ຕິດມາກັບ Spreadsheet ໃໝ່ (ຖ້າມີ ແລະ ບໍ່ແມ່ນ 5 Tabs ນີ້)
@@ -298,7 +247,7 @@ function setupDatabaseSheets() {
   PropertiesService.getScriptProperties().setProperty('LAST_RECEIPT_NO', '1');
 
   SpreadsheetApp.flush();
-  return { success: true, message: 'ສ້າງຕາຕະລາງຖານຂໍ້ມູນທັງ 5 Tabs ສຳເລັດແລ້ວ!' };
+  return { success: true, message: 'ສ້າງຕາຕະລາງຖານຂໍ້ມູນທັງ 5 Tabs ສຳເລັດແລ້ວ! (ພ້ອມໃຊ້ງານ, ບໍ່ມີຂໍ້ມູນຕົວຢ່າງ)' };
 }
 
 /**
@@ -596,28 +545,160 @@ function recordSale(saleData) {
 
 /**
  * ------------------------------------------------------------------------------
- * 📥 4. ຮັບສິນຄ້າໃໝ່ເຂົ້າສາງ (Restock / Add New Batch)
+ * 📥 4. ຮັບສິນຄ້າໃໝ່ເຂົ້າສາງ (Restock / Add New Product & Batch)
  * ------------------------------------------------------------------------------
  */
 function restockBatch(batchData) {
   const ss = getSpreadsheet();
+  const shProd = ss.getSheetByName(SHEETS.PRODUCTS);
+  const shUnits = ss.getSheetByName(SHEETS.PRODUCT_UNITS);
   const shBatches = ss.getSheetByName(SHEETS.INVENTORY_BATCHES);
+
   if (!shBatches) throw new Error('ບໍ່ພົບ Tab Inventory_Batches');
 
   const now = new Date();
   const todayStr = Utilities.formatDate(now, 'GMT+7', 'yyyy-MM-dd');
   const batchId = batchData.batch_id || ('LOT-' + Utilities.formatDate(now, 'GMT+7', 'yyMMddHHmm'));
   
+  const barcode = String(batchData.barcode || '').trim();
+  const prodName = String(batchData.product_name || batchData.name_lo || '').trim();
+  const category = String(batchData.category || 'ທົ່ວໄປ').trim();
+  const unitName = String(batchData.unit_name || 'ອັນ').trim();
+  const conversionQty = Math.max(1, Number(batchData.conversion_qty || 1));
+  const sellingPrice = Number(batchData.selling_price || 0);
+  const costPerUnit = Number(batchData.cost_per_unit || 0);
+  const qty = Number(batchData.qty || 1);
+  const expiryDate = batchData.expiry_date || Utilities.formatDate(new Date(now.getTime() + 365*24*3600*1000), 'GMT+7', 'yyyy-MM-dd');
+
+  let productId = String(batchData.product_id || '').trim();
+
+  // 1. ກວດສອບວ່າ Barcode ນີ້ມີໃນ Product_Units ແລ້ວຫຼືບໍ່
+  let foundUnitRow = -1;
+  if (shUnits && barcode) {
+    const unitsData = shUnits.getDataRange().getValues();
+    for (let i = 1; i < unitsData.length; i++) {
+      if (String(unitsData[i][0]).trim() === barcode) {
+        foundUnitRow = i + 1;
+        if (!productId) productId = String(unitsData[i][1]).trim();
+        break;
+      }
+    }
+  }
+
+  // 2. ກວດສອບ ແລະ ສ້າງ Product ໃໝ່ໃນ Tab Products ຖ້າຍັງບໍ່ມີ
+  let foundProdRow = -1;
+  if (shProd) {
+    const prodData = shProd.getDataRange().getValues();
+    if (productId) {
+      for (let i = 1; i < prodData.length; i++) {
+        if (String(prodData[i][0]).trim() === productId) {
+          foundProdRow = i + 1;
+          break;
+        }
+      }
+    } else if (prodName) {
+      for (let i = 1; i < prodData.length; i++) {
+        if (String(prodData[i][1]).trim().toLowerCase() === prodName.toLowerCase()) {
+          foundProdRow = i + 1;
+          productId = String(prodData[i][0]).trim();
+          break;
+        }
+      }
+    }
+
+    // ສ້າງ Product ID ໃໝ່ອັດຕະໂນມັດ (P001, P002...) ຖ້າຍັງບໍ່ມີ
+    if (!productId) {
+      let maxNum = 0;
+      for (let i = 1; i < prodData.length; i++) {
+        const id = String(prodData[i][0]).trim();
+        const m = id.match(/P(\d+)/i);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      }
+      productId = 'P' + String(maxNum + 1).padStart(3, '0');
+    }
+
+    if (foundProdRow === -1) {
+      shProd.appendRow([
+        productId,
+        prodName || ('ສິນຄ້າ ' + productId),
+        category || 'ທົ່ວໄປ',
+        unitName || 'ອັນ',
+        false,
+        '',
+        10
+      ]);
+    } else {
+      if (prodName) shProd.getRange(foundProdRow, 2).setValue(prodName);
+      if (category) shProd.getRange(foundProdRow, 3).setValue(category);
+    }
+  }
+
+  // 3. ເພີ່ມ ຫຼື ອັບເດດໃນ Product_Units
+  if (shUnits && barcode) {
+    if (foundUnitRow === -1) {
+      shUnits.appendRow([
+        barcode,
+        productId,
+        unitName || 'ອັນ',
+        conversionQty,
+        sellingPrice
+      ]);
+    } else {
+      if (unitName) shUnits.getRange(foundUnitRow, 3).setValue(unitName);
+      if (conversionQty) shUnits.getRange(foundUnitRow, 4).setValue(conversionQty);
+      if (sellingPrice > 0) shUnits.getRange(foundUnitRow, 5).setValue(sellingPrice);
+    }
+  }
+
+  // 4. ເພີ່ມ Batch ເຂົ້າໃນ Inventory_Batches
+  const baseQty = qty * conversionQty;
+  const costPerBaseUnit = costPerUnit / conversionQty;
   shBatches.appendRow([
     batchId,
-    String(batchData.product_id).trim(),
-    String(batchData.expiry_date),
-    Number(batchData.cost_per_unit || 0),
-    Number(batchData.qty || 0),
+    productId,
+    String(expiryDate),
+    costPerBaseUnit,
+    baseQty,
     todayStr
   ]);
 
-  return { success: true, message: 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍແລ້ວ! ລະຫັດລ໊ອດ: ' + batchId };
+  SpreadsheetApp.flush();
+
+  return {
+    success: true,
+    message: 'ຮັບສິນຄ້າເຂົ້າສາງຮຽບຮ້ອຍແລ້ວ! ລະຫັດລ໊ອດ: ' + batchId,
+    batch_id: batchId,
+    product_id: productId,
+    barcode: barcode
+  };
+}
+
+/**
+ * ------------------------------------------------------------------------------
+ * 🧹 ລຶບຂໍ້ມູນສິນຄ້າຕົວຢ່າງ ແລະ ລາຍການທັງໝົດອອກຈາກ Google Sheets (Reset to Empty)
+ * ------------------------------------------------------------------------------
+ */
+function clearAllDatabaseData() {
+  const ss = getSpreadsheet();
+  const sheetsToClear = [
+    SHEETS.PRODUCTS,
+    SHEETS.PRODUCT_UNITS,
+    SHEETS.INVENTORY_BATCHES,
+    SHEETS.SALES_HEADER,
+    SHEETS.SALES_DETAILS
+  ];
+  
+  sheetsToClear.forEach(sheetName => {
+    const sh = ss.getSheetByName(sheetName);
+    if (sh && sh.getLastRow() > 1) {
+      sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+    }
+  });
+
+  return { success: true, message: 'ລຶບຂໍ້ມູນສິນຄ້າ ແລະ ລາຍການທັງໝົດອອກຈາກ Google Sheets ຮຽບຮ້ອຍແລ້ວ! ຕາຕະລາງພ້ອມໃຊ້ງານໃໝ່.' };
 }
 
 /**
