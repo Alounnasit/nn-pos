@@ -955,7 +955,8 @@
             { product_id: 'P005', name_lo: 'ໝາກກ້ຽງຫວານ (ຊັ່ງກິໂລ)', category: 'ໝາກໄມ້', base_uom: 'ກິໂລ', is_weighable: true, plu_code: '00106', min_stock: 10, total_stock: 25, next_expiry: '2026-10-10', units: [] },
             { product_id: 'P006', name_lo: 'ໄຂ່ໄກ່ເບີ 1', category: 'ຂອງສົດ', base_uom: 'ຟອງ', is_weighable: false, plu_code: '', min_stock: 60, total_stock: 120, next_expiry: '2026-10-20', units: [] },
             { product_id: 'P007', name_lo: 'ກາເຟດາວ 3in1 (ສີແດງ)', category: 'ເຄື່ອງດື່ມ', base_uom: 'ຊອງ', is_weighable: false, plu_code: '', min_stock: 50, total_stock: 100, next_expiry: '2027-08-30', units: [] },
-            { product_id: 'P008', name_lo: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', category: 'ນົມແລະເຄື່ອງດື່ມ', base_uom: 'ກ່ອງ', is_weighable: false, plu_code: '', min_stock: 36, total_stock: 48, next_expiry: '2026-12-15', units: [] }
+            { product_id: 'P008', name_lo: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', category: 'ນົມແລະເຄື່ອງດື່ມ', base_uom: 'ກ່ອງ', is_weighable: false, plu_code: '', min_stock: 36, total_stock: 48, next_expiry: '2026-12-15', units: [] },
+            { product_id: 'P009', name_lo: 'ເຄື່ອງດື່ມກະປ໋ອງແດງ (8857200400213)', category: 'ເຄື່ອງດື່ມ', base_uom: 'ກະປ໋ອງ', is_weighable: false, plu_code: '', min_stock: 24, total_stock: 60, next_expiry: '2027-12-31', units: [] }
           ],
           units: [
             { barcode: '8850001', product_id: 'P001', unit_name: 'ກະປ໋ອງ', conversion_qty: 1, selling_price: 15000, product_name: 'ເບຍລາວ ກະປ໋ອງ 330ml', base_uom: 'ກະປ໋ອງ' },
@@ -972,7 +973,8 @@
             { barcode: '8850010', product_id: 'P007', unit_name: 'ຊອງ', conversion_qty: 1, selling_price: 3000, product_name: 'ກາເຟດາວ 3in1 (ສີແດງ)', base_uom: 'ຊອງ' },
             { barcode: '8850011', product_id: 'P007', unit_name: 'ຖົງໃຫຍ່ (25 ຊອງ)', conversion_qty: 25, selling_price: 70000, product_name: 'ກາເຟດາວ 3in1 (ສີແດງ)', base_uom: 'ຊອງ' },
             { barcode: '8850012', product_id: 'P008', unit_name: 'ກ່ອງ', conversion_qty: 1, selling_price: 7000, product_name: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', base_uom: 'ກ່ອງ' },
-            { barcode: '8850013', product_id: 'P008', unit_name: 'ແພັກ (4 ກ່ອງ)', conversion_qty: 4, selling_price: 26000, product_name: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', base_uom: 'ກ່ອງ' }
+            { barcode: '8850013', product_id: 'P008', unit_name: 'ແພັກ (4 ກ່ອງ)', conversion_qty: 4, selling_price: 26000, product_name: 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', base_uom: 'ກ່ອງ' },
+            { barcode: '8857200400213', product_id: 'P009', unit_name: 'ກະປ໋ອງ', conversion_qty: 1, selling_price: 12000, product_name: 'ເຄື່ອງດື່ມກະປ໋ອງແດງ (8857200400213)', base_uom: 'ກະປ໋ອງ' }
           ],
           categories: ['ທັງໝົດ', 'ເຄື່ອງດື່ມ', 'ອາຫານແຫ້ງ', 'ອາຫານສົດ', 'ໝາກໄມ້', 'ຂອງສົດ', 'ນົມແລະເຄື່ອງດື່ມ'],
           storeInfo: state.storeInfo
@@ -1259,6 +1261,108 @@
     }
 
     /**
+     * =========================================================================
+     * 🚀 MULTI-ENGINE BARCODE DECODER (Native BarcodeDetector + Html5Qrcode + Canvas Filter)
+     * =========================================================================
+     */
+    async function decodeBarcodeFromImageFile(file) {
+      // Strategy 1: Native BarcodeDetector (Chrome / Safari 17+ hardware accelerated - handles curved cans & bottles)
+      if ('BarcodeDetector' in window) {
+        try {
+          const detector = new BarcodeDetector({
+            formats: ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code']
+          });
+          const imgBitmap = await createImageBitmap(file);
+          const detected = await detector.detect(imgBitmap);
+          if (detected && detected.length > 0 && detected[0].rawValue) {
+            console.log('✅ BarcodeDetector decoded:', detected[0].rawValue, 'format:', detected[0].format);
+            return detected[0].rawValue.trim();
+          }
+        } catch (e) {
+          console.warn('Native BarcodeDetector attempt error:', e);
+        }
+      }
+
+      // Initialize Html5Qrcode with all barcode formats
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("camera-reader", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ],
+          verbose: false
+        });
+      }
+
+      // Strategy 2: Html5Qrcode on resized photo (1280px)
+      const resizedFile = await resizeImageIfNeeded(file, 1280);
+      try {
+        const text = await html5QrCode.scanFile(resizedFile, false);
+        if (text) return text.trim();
+      } catch (e1) {
+        console.warn('Scan resized file failed, trying original file:', e1);
+      }
+
+      // Strategy 3: Html5Qrcode on original photo
+      try {
+        const text = await html5QrCode.scanFile(file, false);
+        if (text) return text.trim();
+      } catch (e2) {
+        console.warn('Scan original file failed, trying contrast enhancement:', e2);
+      }
+
+      // Strategy 4: High-contrast binarization canvas (great for curved cans/bottles and reflections)
+      try {
+        const enhancedFile = await enhanceBarcodeContrast(file);
+        const text = await html5QrCode.scanFile(enhancedFile, false);
+        if (text) return text.trim();
+      } catch (e3) {
+        console.warn('Scan enhanced file failed:', e3);
+      }
+
+      throw new Error('ບໍ່ພົບບາໂຄ້ດໃນຮູບພາບ');
+    }
+
+    function enhanceBarcodeContrast(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+
+          try {
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+              const gray = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114);
+              const val = gray > 140 ? 255 : (gray < 75 ? 0 : gray);
+              d[i] = val;
+              d[i+1] = val;
+              d[i+2] = val;
+            }
+            ctx.putImageData(imgData, 0, 0);
+            canvas.toBlob(blob => {
+              if (blob) resolve(new File([blob], 'enhanced.jpg', { type: 'image/jpeg' }));
+              else resolve(file);
+            }, 'image/jpeg', 0.95);
+          } catch(err) {
+            resolve(file);
+          }
+        };
+        img.onerror = () => resolve(file);
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    /**
      * Handle Native Camera Photo Selection & Barcode Decoding
      */
     async function handleBarcodeFileSelected(input) {
@@ -1271,7 +1375,7 @@
         html: `
           <div class="py-3 flex flex-col items-center justify-center gap-2">
             <i class="fa-solid fa-spinner fa-spin text-3xl text-indigo-500"></i>
-            <p class="text-xs text-slate-500 mt-1">ກະລຸນາລໍຖ້າຈັກໜ່ອຍ...</p>
+            <p class="text-xs text-slate-500 mt-1">ກຳລັງປະມວນຜົນຮູບພາບ...</p>
           </div>
         `,
         showConfirmButton: false,
@@ -1280,47 +1384,53 @@
       });
 
       try {
-        // 1. Resize high-res smartphone photo (e.g. 12MP-48MP) to 1280px for instant sub-second decoding
-        const resizedFile = await resizeImageIfNeeded(file, 1280);
-
-        // 2. Ensure Html5Qrcode instance exists
-        if (!html5QrCode) {
-          html5QrCode = new Html5Qrcode("camera-reader");
-        }
-
-        let decodedText = null;
-        try {
-          decodedText = await html5QrCode.scanFile(resizedFile, false);
-        } catch (resizeErr) {
-          console.warn("Scan resized file failed, trying original file:", resizeErr);
-          // Fallback: try original file if resized didn't catch the code
-          decodedText = await html5QrCode.scanFile(file, false);
-        }
-
+        const decodedText = await decodeBarcodeFromImageFile(file);
         Swal.close();
 
         if (decodedText) {
-          // Process barcode (auto resolve weight scale or regular product, add to cart, play beep)
-          const result = processBarcode(decodedText, true);
+          // Always display barcode in the input box so user sees it was read!
+          const barcodeInput = document.getElementById('barcode-input');
+          if (barcodeInput) barcodeInput.value = decodedText;
 
           // Close modal if open
           closeMobileCameraScanner();
+
+          // Process barcode (resolve product or digital scale)
+          const result = processBarcode(decodedText, true);
 
           if (result.success) {
             Swal.fire({
               icon: 'success',
               title: 'ສະແກນສຳເລັດ!',
-              html: `<div class="text-sm font-semibold text-slate-800">${result.itemName}</div><div class="text-xs font-mono text-slate-500 mt-1">ບາໂຄ້ດ: ${decodedText}</div>`,
+              html: `<div class="text-sm font-semibold text-slate-800">${result.itemName}</div><div class="text-xs font-mono text-slate-500 mt-1">ບາໂຄ້ດ: <b>${decodedText}</b></div>`,
               timer: 1600,
               showConfirmButton: false,
               toast: true,
               position: 'top-end'
+            });
+          } else {
+            // Decoded successfully, but not in database!
+            playBeep('warning');
+            Swal.fire({
+              icon: 'info',
+              title: 'ອ່ານບາໂຄ້ດໄດ້ແລ້ວ! ✅',
+              html: `
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-1">
+                  <span class="text-xs text-slate-500">ລະຫັດບາໂຄ້ດທີ່ອ່ານໄດ້:</span>
+                  <p class="text-2xl font-mono font-bold text-blue-600">${decodedText}</p>
+                </div>
+                <p class="text-xs text-amber-600 mt-2 font-medium">⚠️ ບໍ່ພົບສິນຄ້ານີ້ໃນຖານຂໍ້ມູນ Google Sheets</p>
+                <p class="text-[11px] text-slate-400 mt-1">ກະລຸນາເພີ່ມສິນຄ້າບາໂຄ້ດ <b>${decodedText}</b> ເຂົ້າໃນ Tab <b>Products</b> ແລະ <b>Product_Units</b> ໃນ Google Sheets</p>
+              `,
+              confirmButtonText: 'ຕົກລົງ',
+              confirmButtonColor: '#2563eb'
             });
           }
         }
       } catch (err) {
         console.error('File barcode scan error:', err);
         Swal.close();
+        playBeep('error');
         Swal.fire({
           icon: 'warning',
           title: 'ບໍ່ສາມາດອ່ານບາໂຄ້ດໄດ້',
@@ -1341,7 +1451,6 @@
           }
         });
       } finally {
-        // Reset file input value so user can scan again even with same photo
         input.value = '';
       }
     }
@@ -1457,7 +1566,18 @@
           qrbox: { width: 260, height: 200 }
         };
 
-        html5QrCode = new Html5Qrcode("camera-reader");
+        html5QrCode = new Html5Qrcode("camera-reader", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ],
+          verbose: false
+        });
 
         // Attempt 1: Query camera devices (works best on PC Chrome & modern mobile)
         let started = false;
@@ -1634,11 +1754,15 @@
         try { navigator.vibrate(80); } catch(e) {}
       }
 
+      // Always display barcode in the input box!
+      const barcodeInput = document.getElementById('barcode-input');
+      if (barcodeInput) barcodeInput.value = decodedText;
+
       // Process barcode
       const result = processBarcode(decodedText, true);
 
       // Show on-screen feedback toast in the scanner viewport
-      showScanFeedbackToast(result.success ? `✅ ຍິງສຳເລັດ: ${result.itemName} (+1)` : `⚠️ ບໍ່ພົບສິນຄ້າ: ${decodedText}`);
+      showScanFeedbackToast(result.success ? `✅ ຍິງສຳເລັດ: ${result.itemName} (+1)` : `⚠️ ບາໂຄ້ດ: ${decodedText} (ບໍ່ມີໃນລະບົບ)`);
 
       const isContinuous = document.getElementById('continuous-scan-toggle').checked;
       if (!isContinuous && result.success) {

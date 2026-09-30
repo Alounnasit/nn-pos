@@ -165,7 +165,8 @@ function setupDatabaseSheets() {
     ['P005', 'ໝາກກ້ຽງຫວານ (ຊັ່ງກິໂລ)', 'ໝາກໄມ້', 'ກິໂລ', true, '00106', 10],
     ['P006', 'ໄຂ່ໄກ່ເບີ 1', 'ຂອງສົດ', 'ຟອງ', false, '', 60],
     ['P007', 'ກາເຟດາວ 3in1 (ສີແດງ)', 'ເຄື່ອງດື່ມ', 'ຊອງ', false, '', 50],
-    ['P008', 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', 'ນົມແລະເຄື່ອງດື່ມ', 'ກ່ອງ', false, '', 36]
+    ['P008', 'ນົມສົດ ດັດຊ໌ມິລຄ໌ 180ml', 'ນົມແລະເຄື່ອງດື່ມ', 'ກ່ອງ', false, '', 36],
+    ['P009', 'ເຄື່ອງດື່ມກະປ໋ອງແດງ (8857200400213)', 'ເຄື່ອງດື່ມ', 'ກະປ໋ອງ', false, '', 24]
   ];
   shProd.getRange(2, 1, sampleProducts.length, sampleProducts[0].length).setValues(sampleProducts);
   formatHeaderRow(shProd, '#1E3A8A');
@@ -200,7 +201,8 @@ function setupDatabaseSheets() {
     ['8850010', 'P007', 'ຊອງ', 1, 3000],
     ['8850011', 'P007', 'ຖົງໃຫຍ່ (25 ຊອງ)', 25, 70000],
     ['8850012', 'P008', 'ກ່ອງ', 1, 7000],
-    ['8850013', 'P008', 'ແພັກ (4 ກ່ອງ)', 4, 26000]
+    ['8850013', 'P008', 'ແພັກ (4 ກ່ອງ)', 4, 26000],
+    ['8857200400213', 'P009', 'ກະປ໋ອງ', 1, 12000]
   ];
   shUnits.getRange(2, 1, sampleUnits.length, sampleUnits[0].length).setValues(sampleUnits);
   formatHeaderRow(shUnits, '#0F766E');
