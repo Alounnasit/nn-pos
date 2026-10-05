@@ -1055,13 +1055,20 @@
       <div id="wireless-cam-error" class="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center text-white hidden z-30 space-y-3">
         <i class="fa-solid fa-camera text-3xl text-amber-400"></i>
         <h4 class="font-bold text-sm">ບໍ່ສາມາດເປີດກ້ອງວິດີໂອໄດ້</h4>
-        <p class="text-xs text-slate-400 max-w-xs leading-relaxed">
-          ກະລຸນາກວດສອບສິດ Camera Permission ຫຼື ໃຊ້ປຸ່ມຖ່າຍຮູບດ້ານລຸ່ມນີ້
+        <p class="text-xs text-slate-300 max-w-xs leading-relaxed">
+          ກະລຸນາກວດສອບສິດ Camera Permission ຫຼື ແຕະປຸ່ມດ້ານລຸ່ມເພື່ອເປີດກ້ອງ
         </p>
-        <button onclick="triggerWirelessNativeSnap()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg">
+        <button onclick="startWirelessCameraScanner()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg transition">
+          <i class="fa-solid fa-play"></i>
+          <span>👉 ແຕະບ່ອນນີ້ເພື່ອເປີດກ້ອງ (Tap to Open Camera)</span>
+        </button>
+        <button onclick="triggerWirelessNativeSnap()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg transition">
           <i class="fa-solid fa-camera"></i>
           <span>📸 ຖ່າຍຮູບສະແກນສົ່ງໄປ PC</span>
         </button>
+        <p class="text-[11px] text-slate-400 max-w-xs">
+          💡 ສໍາລັບ iPhone/Safari: ໄປທີ່ <strong>Settings &gt; Safari &gt; Camera</strong> ແລ້ວເລືອກ <strong>Allow</strong>
+        </p>
       </div>
       <input type="file" id="wireless-file-input" accept="image/*" capture="environment" class="hidden" onchange="handleWirelessFileSelected(this)">
     </div>
@@ -1376,6 +1383,18 @@
       initCatalogData();
       checkSavedLoginSession();
       checkMobileScannerModeOnLoad();
+
+      // iOS Safari video unlock on user interaction
+      const wView = document.getElementById('wireless-scanner-view');
+      if (wView) {
+        ['click', 'touchstart'].forEach(evt => {
+          wView.addEventListener(evt, () => {
+            if (typeof ensureVideoInline === 'function') {
+              ensureVideoInline('wireless-camera-reader');
+            }
+          }, { passive: true });
+        });
+      }
     });
 
     function startLiveClock() {
@@ -2073,6 +2092,33 @@
     }
 
     /**
+     * Enforce iOS Safari inline video playback attributes
+     */
+    function ensureVideoInline(containerId) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const fixVideos = () => {
+        const videos = container.querySelectorAll('video');
+        videos.forEach(v => {
+          v.setAttribute('playsinline', 'true');
+          v.setAttribute('webkit-playsinline', 'true');
+          v.setAttribute('muted', 'true');
+          v.setAttribute('autoplay', 'true');
+          v.playsInline = true;
+          v.muted = true;
+          v.autoplay = true;
+          if (v.paused) {
+            v.play().catch(() => {});
+          }
+        });
+      };
+      fixVideos();
+      setTimeout(fixVideos, 250);
+      setTimeout(fixVideos, 700);
+      setTimeout(fixVideos, 1500);
+    }
+
+    /**
      * Live Video Stream Camera Scanner Viewfinder
      */
     async function openMobileCameraScanner() {
@@ -2102,114 +2148,120 @@
         return;
       }
 
-      try {
-        // Clean up any previous instance cleanly
-        if (html5QrCode) {
-          try {
-            if (html5QrCode.isScanning) {
-              await html5QrCode.stop();
-            }
-            await html5QrCode.clear();
-          } catch(e) {}
+      // Check if running on insecure file:// protocol
+      if (window.location.protocol === 'file:') {
+        loading.classList.add('hidden');
+        showCameraError('Browser ບລັອກກ້ອງເທິງ file:// (ເປີດໄຟລ໌ໂດຍກົງ). ກະລຸນາເປີດຜ່ານ http://localhost:8089 ຫຼື Google Apps Script Web App (HTTPS).');
+        const errorMsg = document.getElementById('camera-error-msg');
+        if (errorMsg) {
+          errorMsg.innerHTML = `Browser ບລັອກກ້ອງເທິງ file:// ເພື່ອຄວາມປອດໄພ.<br><br>
+            <a href="http://localhost:8089" target="_blank" class="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition">
+              👉 ກົດເປີດຜ່ານ http://localhost:8089
+            </a>`;
         }
+        return;
+      }
 
-        // Check if running on insecure file:// protocol
-        if (window.location.protocol === 'file:') {
-          loading.classList.add('hidden');
-          showCameraError('Browser ບລັອກກ້ອງເທິງ file:// (ເປີດໄຟລ໌ໂດຍກົງ). ກະລຸນາເປີດຜ່ານ http://localhost:8089 ຫຼື Google Apps Script Web App (HTTPS).');
-          const errorMsg = document.getElementById('camera-error-msg');
-          if (errorMsg) {
-            errorMsg.innerHTML = `Browser ບລັອກກ້ອງເທິງ file:// ເພື່ອຄວາມປອດໄພ.<br><br>
-              <a href="http://localhost:8089" target="_blank" class="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition">
-                👉 ກົດເປີດຜ່ານ http://localhost:8089
-              </a>`;
-          }
-          return;
+      const readerDiv = document.getElementById('camera-reader');
+      if (readerDiv) readerDiv.innerHTML = '';
+
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+      const qrConfig = {
+        fps: 12,
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const boxW = Math.max(180, Math.min(Math.floor(minEdge * 0.8), 280));
+          const boxH = Math.max(130, Math.min(Math.floor(boxW * 0.72), 200));
+          return { width: boxW, height: boxH };
         }
+      };
 
-        const readerDiv = document.getElementById('camera-reader');
-        if (readerDiv) readerDiv.innerHTML = '';
+      // Candidate constraint list:
+      // iOS: start strictly with facingMode (deviceId triggers OverconstrainedError on Safari)
+      // Android / PC: facingMode first, then camera ID fallback
+      let candidates = [
+        { facingMode: "environment" }
+      ];
 
-        const qrConfig = {
-          fps: 15,
-          qrbox: { width: 260, height: 200 }
-        };
-
-        html5QrCode = new Html5Qrcode("camera-reader", {
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.QR_CODE
-          ],
-          verbose: false
-        });
-
-        // Attempt 1: Query camera devices (works best on PC Chrome & modern mobile)
-        let started = false;
+      if (!isIOS) {
         try {
           cameraDevices = await Html5Qrcode.getCameras();
           if (cameraDevices && cameraDevices.length > 0) {
-            // Find rear/environment camera if available, or first camera on PC
             let selectedCam = cameraDevices.find(d => 
               d.label.toLowerCase().includes('back') || 
               d.label.toLowerCase().includes('rear') || 
               d.label.toLowerCase().includes('environment')
             ) || cameraDevices[cameraDevices.length - 1];
 
-            await html5QrCode.start(
-              selectedCam.id,
-              qrConfig,
-              onBarcodeDecoded,
-              () => {}
-            );
-            started = true;
-            if (cameraDevices.length > 1) {
-              switchBtn.classList.remove('hidden');
-            } else {
-              switchBtn.classList.add('hidden');
+            if (selectedCam && selectedCam.id) {
+              candidates.push(selectedCam.id);
             }
           }
         } catch(camListErr) {
-          console.warn("Could not enumerate cameras, falling back to facingMode:", camListErr);
+          console.warn("Could not enumerate cameras:", camListErr);
         }
+      }
 
-        // Attempt 2: Try facingMode environment
-        if (!started) {
-          try {
-            await html5QrCode.start(
-              { facingMode: "environment" },
-              qrConfig,
-              onBarcodeDecoded,
-              () => {}
-            );
-            started = true;
-          } catch (envErr) {
-            console.warn("Environment camera not available, attempting user camera:", envErr);
+      candidates.push({ facingMode: "user" });
+
+      let started = false;
+      let lastErr = null;
+
+      for (const cand of candidates) {
+        try {
+          if (html5QrCode) {
+            try {
+              if (html5QrCode.isScanning) await html5QrCode.stop();
+              await html5QrCode.clear();
+            } catch(e) {}
+            html5QrCode = null;
           }
-        }
+          if (readerDiv) readerDiv.innerHTML = '';
 
-        // Attempt 3: Try facingMode user (e.g. PC webcam)
-        if (!started) {
+          html5QrCode = new Html5Qrcode("camera-reader", {
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.QR_CODE
+            ],
+            verbose: false
+          });
+
           await html5QrCode.start(
-            { facingMode: "user" },
+            cand,
             qrConfig,
             onBarcodeDecoded,
             () => {}
           );
           started = true;
+          break;
+        } catch (err) {
+          lastErr = err;
+          console.warn("openMobileCameraScanner candidate failed:", cand, err);
         }
+      }
 
-        loading.classList.add('hidden');
+      loading.classList.add('hidden');
+
+      if (started) {
+        ensureVideoInline('camera-reader');
         checkTorchSupport();
-
-      } catch (err) {
-        console.error('Camera live start error:', err);
-        loading.classList.add('hidden');
-        let errDetail = (err && (err.message || err.name || String(err))) || '';
+        if (switchBtn) {
+          if (cameraDevices && cameraDevices.length > 1) {
+            switchBtn.classList.remove('hidden');
+          } else {
+            switchBtn.classList.add('hidden');
+          }
+        }
+      } else {
+        console.error('Camera live start error:', lastErr);
+        let errDetail = (lastErr && (lastErr.message || lastErr.name || String(lastErr))) || '';
         showCameraError(errDetail || 'ບໍ່ສາມາດເປີດ Live Camera ໄດ້');
       }
     }
@@ -2290,7 +2342,52 @@
       if (!cameraDevices || cameraDevices.length < 2) return;
       currentCameraIndex = (currentCameraIndex + 1) % cameraDevices.length;
       const nextCamId = cameraDevices[currentCameraIndex].id;
-      await startCameraStream(nextCamId);
+      
+      const qrConfig = {
+        fps: 12,
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const boxW = Math.max(180, Math.min(Math.floor(minEdge * 0.8), 280));
+          const boxH = Math.max(130, Math.min(Math.floor(boxW * 0.72), 200));
+          return { width: boxW, height: boxH };
+        }
+      };
+
+      try {
+        if (html5QrCode) {
+          try {
+            if (html5QrCode.isScanning) await html5QrCode.stop();
+            await html5QrCode.clear();
+          } catch(e) {}
+          html5QrCode = null;
+        }
+        const readerDiv = document.getElementById('camera-reader');
+        if (readerDiv) readerDiv.innerHTML = '';
+
+        html5QrCode = new Html5Qrcode("camera-reader", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ],
+          verbose: false
+        });
+
+        await html5QrCode.start(
+          nextCamId,
+          qrConfig,
+          onBarcodeDecoded,
+          () => {}
+        );
+        ensureVideoInline('camera-reader');
+        checkTorchSupport();
+      } catch (err) {
+        console.warn('Switch camera error:', err);
+      }
     }
 
     async function closeMobileCameraScanner() {
@@ -3801,6 +3898,7 @@
           if (mobileHtml5QrCode.isScanning) await mobileHtml5QrCode.stop();
           await mobileHtml5QrCode.clear();
         } catch(e) {}
+        mobileHtml5QrCode = null;
       }
 
       if (liveNativeStreamInterval) {
@@ -3812,33 +3910,25 @@
       if (readerEl) readerEl.innerHTML = '';
       await new Promise(r => setTimeout(r, 100));
 
-      try {
-        mobileHtml5QrCode = new Html5Qrcode("wireless-camera-reader", {
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.QR_CODE
-          ],
-          verbose: false
-        });
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-        const qrConfig = {
-          fps: 20,
-          qrbox: { width: 280, height: 200 }
-        };
+      const primaryFacing = mobileCurrentFacingMode || 'environment';
+      const secondaryFacing = (primaryFacing === 'environment') ? 'user' : 'environment';
 
-        let started = false;
+      // Prioritized camera candidates:
+      // iOS: start strictly with facingMode (deviceId triggers OverconstrainedError on Safari)
+      // Android / PC: facingMode first, then camera ID fallback
+      let candidates = [
+        { facingMode: primaryFacing }
+      ];
 
-        // Attempt 1: Query camera devices (best on iOS Safari & Chrome to pick rear camera ID)
+      if (!isIOS) {
         try {
           const cams = await Html5Qrcode.getCameras();
           if (cams && cams.length > 0) {
             let selectedCam;
-            if (mobileCurrentFacingMode === 'user') {
+            if (primaryFacing === 'user') {
               selectedCam = cams.find(d => {
                 const lbl = (d.label || '').toLowerCase();
                 return lbl.includes('front') || lbl.includes('user') || lbl.includes('facetime');
@@ -3849,55 +3939,74 @@
                 return lbl.includes('back') || lbl.includes('rear') || lbl.includes('environment');
               }) || cams[cams.length - 1];
             }
-
             if (selectedCam && selectedCam.id) {
-              await mobileHtml5QrCode.start(
-                selectedCam.id,
-                qrConfig,
-                onMobileWirelessBarcodeScanned,
-                () => {}
-              );
-              started = true;
+              candidates.push(selectedCam.id);
             }
           }
         } catch (camErr) {
-          console.warn("Could not start camera by ID, trying facingMode:", camErr);
+          console.warn("Could not enumerate cameras on wireless scanner:", camErr);
         }
+      }
 
-        // Attempt 2: Start with facingMode object (clean standard constraints without focusMode)
-        if (!started) {
-          try {
-            await mobileHtml5QrCode.start(
-              { facingMode: mobileCurrentFacingMode },
-              qrConfig,
-              onMobileWirelessBarcodeScanned,
-              () => {}
-            );
-            started = true;
-          } catch (facingErr) {
-            console.warn("Could not start camera with facingMode:", facingErr);
+      candidates.push({ facingMode: secondaryFacing });
+
+      const qrConfig = {
+        fps: 12,
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const boxW = Math.max(180, Math.min(Math.floor(minEdge * 0.8), 280));
+          const boxH = Math.max(130, Math.min(Math.floor(boxW * 0.72), 200));
+          return { width: boxW, height: boxH };
+        }
+      };
+
+      let started = false;
+      let lastErr = null;
+
+      for (const cand of candidates) {
+        try {
+          if (mobileHtml5QrCode) {
+            try {
+              if (mobileHtml5QrCode.isScanning) await mobileHtml5QrCode.stop();
+              await mobileHtml5QrCode.clear();
+            } catch(e) {}
+            mobileHtml5QrCode = null;
           }
-        }
+          if (readerEl) readerEl.innerHTML = '';
 
-        // Attempt 3: Fallback facingMode
-        if (!started) {
-          const fallbackFacing = (mobileCurrentFacingMode === 'environment') ? 'user' : 'environment';
+          mobileHtml5QrCode = new Html5Qrcode("wireless-camera-reader", {
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.QR_CODE
+            ],
+            verbose: false
+          });
+
           await mobileHtml5QrCode.start(
-            { facingMode: fallbackFacing },
+            cand,
             qrConfig,
             onMobileWirelessBarcodeScanned,
             () => {}
           );
           started = true;
+          break;
+        } catch (errCand) {
+          lastErr = errCand;
+          console.warn("Wireless camera start candidate failed:", cand, errCand);
         }
+      }
 
+      if (started) {
+        ensureVideoInline('wireless-camera-reader');
         checkWirelessTorchSupport();
-
-        // Safely hook live native BarcodeDetector hardware loop if supported by browser
         setTimeout(attachLiveStreamDetector, 400);
-
-      } catch (err) {
-        console.warn('Could not start live video stream on mobile:', err);
+      } else {
+        console.warn('Could not start live video stream on mobile:', lastErr);
         if (errBox) errBox.classList.remove('hidden');
       }
     }
