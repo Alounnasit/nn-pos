@@ -48,6 +48,13 @@
   <!-- html5-qrcode for Mobile Camera Barcode Scanner -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
+  <!-- ZBar WebAssembly & BarcodeDetector Polyfill for iOS Safari Barcode Acceleration -->
+  <script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.9.16/dist/index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@undecaf/barcode-detector-polyfill@0.9.23/dist/index.js"></script>
+
+  <!-- Quagga2 High-Precision 1D Barcode Locator & Decoder (EAN-13, CODE-128, UPC-A) -->
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+
   <!-- Paho MQTT WebSocket for 100% Reliable Cross-Network Real-time Mobile Barcode Gun -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
@@ -1854,7 +1861,14 @@
      * =========================================================================
      */
     async function decodeBarcodeFromImageFile(file) {
-      // Strategy 1: Native BarcodeDetector (Chrome / Safari 17+ hardware accelerated - handles curved cans & bottles)
+      // Ensure BarcodeDetector polyfill is initialized if native is missing
+      if (typeof window !== 'undefined' && (!('BarcodeDetector' in window) || !window.BarcodeDetector)) {
+        if (typeof barcodeDetectorPolyfill !== 'undefined' && barcodeDetectorPolyfill.BarcodeDetectorPolyfill) {
+          window.BarcodeDetector = barcodeDetectorPolyfill.BarcodeDetectorPolyfill;
+        }
+      }
+
+      // Strategy 1: BarcodeDetector (Native Chrome ML Kit / ZBar WASM on iOS)
       if ('BarcodeDetector' in window) {
         try {
           const detector = new BarcodeDetector({
@@ -1867,7 +1881,33 @@
             return detected[0].rawValue.trim();
           }
         } catch (e) {
-          console.warn('Native BarcodeDetector attempt error:', e);
+          console.warn('BarcodeDetector attempt error:', e);
+        }
+      }
+
+      // Strategy 2: Quagga2 1D Barcode Locator Engine (ultra-reliable on iOS photos)
+      if (typeof Quagga !== 'undefined' && Quagga.decodeSingle) {
+        try {
+          const reader = new FileReader();
+          const dataUrl = await new Promise((res) => {
+            reader.onload = e => res(e.target.result);
+            reader.readAsDataURL(file);
+          });
+          const qRes = await Quagga.decodeSingle({
+            src: dataUrl,
+            numOfWorkers: 0,
+            inputStream: { size: 1200 },
+            decoder: {
+              readers: ['ean_reader', 'code_128_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_39_reader']
+            },
+            locate: true
+          });
+          if (qRes && qRes.codeResult && qRes.codeResult.code) {
+            console.log('✅ Quagga2 decoded from photo:', qRes.codeResult.code);
+            return qRes.codeResult.code.trim();
+          }
+        } catch (qErr) {
+          console.warn('Quagga2 photo decode attempt error:', qErr);
         }
       }
 
@@ -1887,7 +1927,7 @@
         });
       }
 
-      // Strategy 2: Html5Qrcode on resized photo (1280px)
+      // Strategy 3: Html5Qrcode on resized photo (1280px)
       const resizedFile = await resizeImageIfNeeded(file, 1280);
       try {
         const text = await html5QrCode.scanFile(resizedFile, false);
@@ -1896,7 +1936,7 @@
         console.warn('Scan resized file failed, trying original file:', e1);
       }
 
-      // Strategy 3: Html5Qrcode on original photo
+      // Strategy 4: Html5Qrcode on original photo
       try {
         const text = await html5QrCode.scanFile(file, false);
         if (text) return text.trim();
@@ -1904,7 +1944,7 @@
         console.warn('Scan original file failed, trying contrast enhancement:', e2);
       }
 
-      // Strategy 4: High-contrast binarization canvas (great for curved cans/bottles and reflections)
+      // Strategy 5: High-contrast binarization canvas
       try {
         const enhancedFile = await enhanceBarcodeContrast(file);
         const text = await html5QrCode.scanFile(enhancedFile, false);
@@ -2169,12 +2209,10 @@
         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
       const qrConfig = {
-        fps: 12,
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const boxW = Math.max(180, Math.min(Math.floor(minEdge * 0.8), 280));
-          const boxH = Math.max(130, Math.min(Math.floor(boxW * 0.72), 200));
-          return { width: boxW, height: boxH };
+        fps: 15,
+        videoConstraints: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
       };
 
@@ -2252,6 +2290,7 @@
       if (started) {
         ensureVideoInline('camera-reader');
         checkTorchSupport();
+        setTimeout(attachModalLiveStreamDetector, 400);
         if (switchBtn) {
           if (cameraDevices && cameraDevices.length > 1) {
             switchBtn.classList.remove('hidden');
@@ -2266,9 +2305,115 @@
       }
     }
 
+    let modalNativeStreamInterval = null;
+
+    async function attachModalLiveStreamDetector() {
+      if (modalNativeStreamInterval) {
+        clearInterval(modalNativeStreamInterval);
+        modalNativeStreamInterval = null;
+      }
+
+      const videoEl = document.querySelector('#camera-reader video');
+      if (!videoEl) {
+        setTimeout(attachModalLiveStreamDetector, 300);
+        return;
+      }
+
+      let detector = null;
+      if (typeof window !== 'undefined') {
+        if ((!('BarcodeDetector' in window) || !window.BarcodeDetector) && typeof barcodeDetectorPolyfill !== 'undefined' && barcodeDetectorPolyfill.BarcodeDetectorPolyfill) {
+          window.BarcodeDetector = barcodeDetectorPolyfill.BarcodeDetectorPolyfill;
+        }
+        if ('BarcodeDetector' in window) {
+          try {
+            const supported = await BarcodeDetector.getSupportedFormats();
+            const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code'];
+            const formats = desired.filter(f => supported.includes(f));
+            if (formats.length > 0) detector = new BarcodeDetector({ formats });
+          } catch(e) {}
+        }
+      }
+
+      const offCanvas = document.createElement('canvas');
+      const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+      let isDetecting = false;
+      let frameCount = 0;
+
+      modalNativeStreamInterval = setInterval(async () => {
+        if (isDetecting || !videoEl || videoEl.paused || videoEl.ended || videoEl.readyState < 2) return;
+        isDetecting = true;
+        frameCount++;
+
+        try {
+          if (detector) {
+            try {
+              const results = await detector.detect(videoEl);
+              if (results && results.length > 0 && results[0].rawValue) {
+                onBarcodeDecoded(results[0].rawValue);
+                isDetecting = false;
+                return;
+              }
+            } catch(e) {}
+          }
+
+          const vw = videoEl.videoWidth || 640;
+          const vh = videoEl.videoHeight || 480;
+          if (vw > 0 && vh > 0) {
+            const cw = Math.floor(vw * 0.90);
+            const ch = Math.floor(vh * 0.60);
+            const cx = Math.floor((vw - cw) / 2);
+            const cy = Math.floor((vh - ch) / 2);
+
+            offCanvas.width = cw;
+            offCanvas.height = ch;
+            offCtx.drawImage(videoEl, cx, cy, cw, ch, 0, 0, cw, ch);
+
+            if (detector) {
+              try {
+                const results = await detector.detect(offCanvas);
+                if (results && results.length > 0 && results[0].rawValue) {
+                  onBarcodeDecoded(results[0].rawValue);
+                  isDetecting = false;
+                  return;
+                }
+              } catch(e) {}
+            }
+
+            if (typeof Quagga !== 'undefined' && Quagga.decodeSingle && (frameCount % 2 === 0)) {
+              try {
+                const dataUrl = offCanvas.toDataURL('image/jpeg', 0.85);
+                const qRes = await Quagga.decodeSingle({
+                  src: dataUrl,
+                  numOfWorkers: 0,
+                  inputStream: { size: Math.max(cw, 800) },
+                  decoder: {
+                    readers: ['ean_reader', 'code_128_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_39_reader']
+                  },
+                  locate: true
+                });
+                if (qRes && qRes.codeResult && qRes.codeResult.code) {
+                  onBarcodeDecoded(qRes.codeResult.code);
+                  isDetecting = false;
+                  return;
+                }
+              } catch(e) {}
+            }
+          }
+        } catch(e) {
+        } finally {
+          isDetecting = false;
+        }
+      }, 90);
+    }
+
     async function closeMobileCameraScanner() {
       const modal = document.getElementById('camera-scanner-modal');
       modal.classList.add('hidden');
+
+      if (modalNativeStreamInterval) {
+        clearInterval(modalNativeStreamInterval);
+        modalNativeStreamInterval = null;
+      }
 
       if (html5QrCode) {
         try {
@@ -3951,12 +4096,11 @@
       candidates.push({ facingMode: secondaryFacing });
 
       const qrConfig = {
-        fps: 12,
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const boxW = Math.max(180, Math.min(Math.floor(minEdge * 0.8), 280));
-          const boxH = Math.max(130, Math.min(Math.floor(boxW * 0.72), 200));
-          return { width: boxW, height: boxH };
+        fps: 15,
+        videoConstraints: {
+          facingMode: primaryFacing,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
       };
 
@@ -4023,46 +4167,67 @@
         return;
       }
 
+      // Initialize BarcodeDetector (Native on Android Chrome, ZBar WASM polyfill on iOS Safari)
       let detector = null;
-      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-        try {
-          const supported = await BarcodeDetector.getSupportedFormats();
-          const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code'];
-          const formats = desired.filter(f => supported.includes(f));
-          if (formats.length > 0) {
-            detector = new BarcodeDetector({ formats });
-            console.log('⚡ Hardware-accelerated BarcodeDetector hooked to live video stream!');
+      if (typeof window !== 'undefined') {
+        if ((!('BarcodeDetector' in window) || !window.BarcodeDetector) && typeof barcodeDetectorPolyfill !== 'undefined' && barcodeDetectorPolyfill.BarcodeDetectorPolyfill) {
+          window.BarcodeDetector = barcodeDetectorPolyfill.BarcodeDetectorPolyfill;
+        }
+
+        if ('BarcodeDetector' in window) {
+          try {
+            const supported = await BarcodeDetector.getSupportedFormats();
+            const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code'];
+            const formats = desired.filter(f => supported.includes(f));
+            if (formats.length > 0) {
+              detector = new BarcodeDetector({ formats });
+              console.log('⚡ BarcodeDetector active with formats:', formats);
+            }
+          } catch (e) {
+            console.warn('BarcodeDetector init error:', e);
           }
-        } catch (e) {
-          console.warn('Live BarcodeDetector init error:', e);
         }
       }
-
-      if (!detector) return;
 
       const offCanvas = document.createElement('canvas');
       const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
       let isDetecting = false;
+      let frameCount = 0;
 
       liveNativeStreamInterval = setInterval(async () => {
         if (isDetecting || !videoEl || videoEl.paused || videoEl.ended || videoEl.readyState < 2) return;
         isDetecting = true;
+        frameCount++;
 
         try {
-          // 1. Direct hardware ML scan on live video frame (Apple Vision on iOS / ML Kit on Android)
-          const results = await detector.detect(videoEl);
-          if (results && results.length > 0 && results[0].rawValue) {
-            onMobileWirelessBarcodeScanned(results[0].rawValue);
-            isDetecting = false;
-            return;
+          // Late initialization if polyfill finished loading in background
+          if (!detector && 'BarcodeDetector' in window) {
+            try {
+              const supported = await BarcodeDetector.getSupportedFormats();
+              const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code'];
+              const formats = desired.filter(f => supported.includes(f));
+              if (formats.length > 0) detector = new BarcodeDetector({ formats });
+            } catch(e) {}
           }
 
-          // 2. High-contrast frame analysis for curved/glossy surfaces
+          // Engine 1: BarcodeDetector direct video stream scan (ML Kit on Android / ZBar WASM on iOS)
+          if (detector) {
+            try {
+              const results = await detector.detect(videoEl);
+              if (results && results.length > 0 && results[0].rawValue) {
+                onMobileWirelessBarcodeScanned(results[0].rawValue);
+                isDetecting = false;
+                return;
+              }
+            } catch (err) {}
+          }
+
+          // Engine 2: Sub-frame canvas scan (laser reticle central area)
           const vw = videoEl.videoWidth || 640;
           const vh = videoEl.videoHeight || 480;
           if (vw > 0 && vh > 0) {
-            const cw = Math.floor(vw * 0.85);
-            const ch = Math.floor(vh * 0.65);
+            const cw = Math.floor(vw * 0.90);
+            const ch = Math.floor(vh * 0.55);
             const cx = Math.floor((vw - cw) / 2);
             const cy = Math.floor((vh - ch) / 2);
 
@@ -4070,20 +4235,64 @@
             offCanvas.height = ch;
             offCtx.drawImage(videoEl, cx, cy, cw, ch, 0, 0, cw, ch);
 
-            const imgData = offCtx.getImageData(0, 0, cw, ch);
-            const d = imgData.data;
-            for (let i = 0; i < d.length; i += 4) {
-              const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114);
-              const v = g > 130 ? 255 : (g < 80 ? 0 : g);
-              d[i] = v; d[i+1] = v; d[i+2] = v;
+            if (detector) {
+              try {
+                const results = await detector.detect(offCanvas);
+                if (results && results.length > 0 && results[0].rawValue) {
+                  onMobileWirelessBarcodeScanned(results[0].rawValue);
+                  isDetecting = false;
+                  return;
+                }
+              } catch (e) {}
             }
-            offCtx.putImageData(imgData, 0, 0);
 
-            const contrastResults = await detector.detect(offCanvas);
-            if (contrastResults && contrastResults.length > 0 && contrastResults[0].rawValue) {
-              onMobileWirelessBarcodeScanned(contrastResults[0].rawValue);
-              isDetecting = false;
-              return;
+            // Engine 3: Quagga2 High-Precision 1D Barcode Engine (every 2nd frame)
+            if (typeof Quagga !== 'undefined' && Quagga.decodeSingle && (frameCount % 2 === 0)) {
+              try {
+                const dataUrl = offCanvas.toDataURL('image/jpeg', 0.85);
+                const qRes = await Quagga.decodeSingle({
+                  src: dataUrl,
+                  numOfWorkers: 0,
+                  inputStream: { size: Math.max(cw, 800) },
+                  decoder: {
+                    readers: [
+                      'ean_reader',
+                      'code_128_reader',
+                      'ean_8_reader',
+                      'upc_reader',
+                      'upc_e_reader',
+                      'code_39_reader'
+                    ]
+                  },
+                  locate: true
+                });
+                if (qRes && qRes.codeResult && qRes.codeResult.code) {
+                  onMobileWirelessBarcodeScanned(qRes.codeResult.code);
+                  isDetecting = false;
+                  return;
+                }
+              } catch (qErr) {}
+            }
+
+            // Engine 4: High-contrast binarization (for reflective metal cans & dark backgrounds)
+            if (frameCount % 3 === 0 && detector) {
+              try {
+                const imgData = offCtx.getImageData(0, 0, cw, ch);
+                const d = imgData.data;
+                for (let i = 0; i < d.length; i += 4) {
+                  const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114);
+                  const v = g > 130 ? 255 : (g < 80 ? 0 : g);
+                  d[i] = v; d[i+1] = v; d[i+2] = v;
+                }
+                offCtx.putImageData(imgData, 0, 0);
+
+                const contrastResults = await detector.detect(offCanvas);
+                if (contrastResults && contrastResults.length > 0 && contrastResults[0].rawValue) {
+                  onMobileWirelessBarcodeScanned(contrastResults[0].rawValue);
+                  isDetecting = false;
+                  return;
+                }
+              } catch (cErr) {}
             }
           }
         } catch (err) {
@@ -4091,7 +4300,7 @@
         } finally {
           isDetecting = false;
         }
-      }, 100);
+      }, 80);
     }
 
     function onMobileWirelessBarcodeScanned(rawCode) {
