@@ -48,13 +48,6 @@
   <!-- html5-qrcode for Mobile Camera Barcode Scanner -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
-  <!-- ZBar WebAssembly & BarcodeDetector Polyfill for iOS Safari Barcode Acceleration -->
-  <script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.9.16/dist/index.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@undecaf/barcode-detector-polyfill@0.9.23/dist/index.js"></script>
-
-  <!-- Quagga2 High-Precision 1D Barcode Locator & Decoder (EAN-13, CODE-128, UPC-A) -->
-  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
-
   <!-- Paho MQTT WebSocket for 100% Reliable Cross-Network Real-time Mobile Barcode Gun -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
@@ -1857,61 +1850,113 @@
 
     /**
      * =========================================================================
+     * 🛡️ MATHEMATICAL CHECKSUM & FORMAT VALIDATORS (Zero False-Positive Scanner)
+     * =========================================================================
+     */
+    function isValidEAN13(code) {
+      if (!code || !/^\d{13}$/.test(code)) return false;
+      let sum = 0;
+      for (let i = 0; i < 12; i++) {
+        sum += parseInt(code[i], 10) * (i % 2 === 0 ? 1 : 3);
+      }
+      const check = (10 - (sum % 10)) % 10;
+      return check === parseInt(code[12], 10);
+    }
+
+    function isValidUPCA(code) {
+      if (!code || !/^\d{12}$/.test(code)) return false;
+      let sum = 0;
+      for (let i = 0; i < 11; i++) {
+        sum += parseInt(code[i], 10) * (i % 2 === 0 ? 3 : 1);
+      }
+      const check = (10 - (sum % 10)) % 10;
+      return check === parseInt(code[11], 10);
+    }
+
+    function isValidEAN8(code) {
+      if (!code || !/^\d{8}$/.test(code)) return false;
+      let sum = 0;
+      for (let i = 0; i < 7; i++) {
+        sum += parseInt(code[i], 10) * (i % 2 === 0 ? 3 : 1);
+      }
+      const check = (10 - (sum % 10)) % 10;
+      return check === parseInt(code[7], 10);
+    }
+
+    function cleanAndValidateBarcode(rawCode) {
+      if (!rawCode) return null;
+      let code = String(rawCode).trim();
+      if (!code) return null;
+
+      // Pure numeric barcodes
+      if (/^\d+$/.test(code)) {
+        // Standard 13-digit EAN-13 (Thailand 885..., International, Modulo 10 Check Digit)
+        if (code.length === 13) {
+          if (isValidEAN13(code)) return code;
+          if (typeof state !== 'undefined' && state.barcodeMap && state.barcodeMap[code]) return code;
+          return null;
+        }
+        // Standard 12-digit UPC-A
+        if (code.length === 12) {
+          if (isValidUPCA(code)) return code;
+          if (typeof state !== 'undefined' && state.barcodeMap && state.barcodeMap[code]) return code;
+          return null;
+        }
+        // Standard 8-digit EAN-8
+        if (code.length === 8) {
+          if (isValidEAN8(code)) return code;
+          if (typeof state !== 'undefined' && state.barcodeMap && state.barcodeMap[code]) return code;
+          return null;
+        }
+        // ITF-14 case / carton codes
+        if (code.length === 14) {
+          return code;
+        }
+        // Short PLU codes (4 to 6 digits, e.g. scale / fruit PLU)
+        if (code.length >= 4 && code.length <= 6) {
+          return code;
+        }
+        // Custom internal shop numeric codes if present in database
+        if (typeof state !== 'undefined' && state.barcodeMap && state.barcodeMap[code]) {
+          return code;
+        }
+        return null;
+      }
+
+      // Alphanumeric / Code 128 / QR codes
+      if (code.length >= 3) {
+        return code;
+      }
+      return null;
+    }
+
+    /**
+     * =========================================================================
      * 🚀 MULTI-ENGINE BARCODE DECODER (Native BarcodeDetector + Html5Qrcode + Canvas Filter)
      * =========================================================================
      */
     async function decodeBarcodeFromImageFile(file) {
-      // Ensure BarcodeDetector polyfill is initialized if native is missing
-      if (typeof window !== 'undefined' && (!('BarcodeDetector' in window) || !window.BarcodeDetector)) {
-        if (typeof barcodeDetectorPolyfill !== 'undefined' && barcodeDetectorPolyfill.BarcodeDetectorPolyfill) {
-          window.BarcodeDetector = barcodeDetectorPolyfill.BarcodeDetectorPolyfill;
-        }
-      }
-
-      // Strategy 1: BarcodeDetector (Native Chrome ML Kit / ZBar WASM on iOS)
+      // Strategy 1: Native BarcodeDetector (Chrome ML Kit)
       if ('BarcodeDetector' in window) {
         try {
           const detector = new BarcodeDetector({
-            formats: ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code']
+            formats: ['ean_13', 'code_128', 'ean_8', 'upc_a', 'qr_code']
           });
           const imgBitmap = await createImageBitmap(file);
           const detected = await detector.detect(imgBitmap);
           if (detected && detected.length > 0 && detected[0].rawValue) {
-            console.log('✅ BarcodeDetector decoded:', detected[0].rawValue, 'format:', detected[0].format);
-            return detected[0].rawValue.trim();
+            const val = cleanAndValidateBarcode(detected[0].rawValue);
+            if (val) {
+              console.log('✅ BarcodeDetector decoded:', val, 'format:', detected[0].format);
+              return val;
+            }
           }
         } catch (e) {
-          console.warn('BarcodeDetector attempt error:', e);
+          console.warn('Native BarcodeDetector attempt error:', e);
         }
       }
 
-      // Strategy 2: Quagga2 1D Barcode Locator Engine (ultra-reliable on iOS photos)
-      if (typeof Quagga !== 'undefined' && Quagga.decodeSingle) {
-        try {
-          const reader = new FileReader();
-          const dataUrl = await new Promise((res) => {
-            reader.onload = e => res(e.target.result);
-            reader.readAsDataURL(file);
-          });
-          const qRes = await Quagga.decodeSingle({
-            src: dataUrl,
-            numOfWorkers: 0,
-            inputStream: { size: 1200 },
-            decoder: {
-              readers: ['ean_reader', 'code_128_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_39_reader']
-            },
-            locate: true
-          });
-          if (qRes && qRes.codeResult && qRes.codeResult.code) {
-            console.log('✅ Quagga2 decoded from photo:', qRes.codeResult.code);
-            return qRes.codeResult.code.trim();
-          }
-        } catch (qErr) {
-          console.warn('Quagga2 photo decode attempt error:', qErr);
-        }
-      }
-
-      // Initialize Html5Qrcode with all barcode formats
+      // Initialize Html5Qrcode with focused retail formats
       if (!html5QrCode) {
         html5QrCode = new Html5Qrcode("camera-reader", {
           formatsToSupport: [
@@ -1919,41 +1964,42 @@
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.EAN_8,
             Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_39,
             Html5QrcodeSupportedFormats.QR_CODE
           ],
           verbose: false
         });
       }
 
+      // Strategy 2: Html5Qrcode on original photo (ZXing HybridBinarizer)
+      try {
+        const text = await html5QrCode.scanFile(file, false);
+        const val = cleanAndValidateBarcode(text);
+        if (val) return val;
+      } catch (e) {
+        console.warn('Scan original file failed, trying resized file:', e);
+      }
+
       // Strategy 3: Html5Qrcode on resized photo (1280px)
       const resizedFile = await resizeImageIfNeeded(file, 1280);
       try {
         const text = await html5QrCode.scanFile(resizedFile, false);
-        if (text) return text.trim();
+        const val = cleanAndValidateBarcode(text);
+        if (val) return val;
       } catch (e1) {
-        console.warn('Scan resized file failed, trying original file:', e1);
+        console.warn('Scan resized file failed, trying contrast enhancement:', e1);
       }
 
-      // Strategy 4: Html5Qrcode on original photo
-      try {
-        const text = await html5QrCode.scanFile(file, false);
-        if (text) return text.trim();
-      } catch (e2) {
-        console.warn('Scan original file failed, trying contrast enhancement:', e2);
-      }
-
-      // Strategy 5: High-contrast binarization canvas
+      // Strategy 4: High-contrast binarization canvas (great for curved cans/bottles and reflections)
       try {
         const enhancedFile = await enhanceBarcodeContrast(file);
         const text = await html5QrCode.scanFile(enhancedFile, false);
-        if (text) return text.trim();
-      } catch (e3) {
-        console.warn('Scan enhanced file failed:', e3);
+        const val = cleanAndValidateBarcode(text);
+        if (val) return val;
+      } catch (e2) {
+        console.warn('Scan enhanced file failed:', e2);
       }
 
-      throw new Error('ບໍ່ພົບບາໂຄ້ດໃນຮູບພາບ');
+      throw new Error('ບໍ່ພົບບາໂຄ້ດທີ່ຖືກຕ້ອງໃນຮູບພາບ');
     }
 
     function enhanceBarcodeContrast(file) {
@@ -2210,6 +2256,11 @@
 
       const qrConfig = {
         fps: 15,
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          const boxW = Math.min(Math.floor(viewfinderWidth * 0.88), 340);
+          const boxH = Math.min(Math.floor(boxW * 0.52), 170);
+          return { width: Math.max(boxW, 260), height: Math.max(boxH, 130) };
+        },
         videoConstraints: {
           width: { ideal: 1280 },
           height: { ideal: 720 }
@@ -2264,8 +2315,6 @@
               Html5QrcodeSupportedFormats.CODE_128,
               Html5QrcodeSupportedFormats.EAN_8,
               Html5QrcodeSupportedFormats.UPC_A,
-              Html5QrcodeSupportedFormats.UPC_E,
-              Html5QrcodeSupportedFormats.CODE_39,
               Html5QrcodeSupportedFormats.QR_CODE
             ],
             verbose: false
@@ -2313,6 +2362,10 @@
         modalNativeStreamInterval = null;
       }
 
+      if (!('BarcodeDetector' in window)) {
+        return;
+      }
+
       const videoEl = document.querySelector('#camera-reader video');
       if (!videoEl) {
         setTimeout(attachModalLiveStreamDetector, 300);
@@ -2320,90 +2373,32 @@
       }
 
       let detector = null;
-      if (typeof window !== 'undefined') {
-        if ((!('BarcodeDetector' in window) || !window.BarcodeDetector) && typeof barcodeDetectorPolyfill !== 'undefined' && barcodeDetectorPolyfill.BarcodeDetectorPolyfill) {
-          window.BarcodeDetector = barcodeDetectorPolyfill.BarcodeDetectorPolyfill;
-        }
-        if ('BarcodeDetector' in window) {
-          try {
-            const supported = await BarcodeDetector.getSupportedFormats();
-            const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code'];
-            const formats = desired.filter(f => supported.includes(f));
-            if (formats.length > 0) detector = new BarcodeDetector({ formats });
-          } catch(e) {}
-        }
-      }
+      try {
+        const supported = await BarcodeDetector.getSupportedFormats();
+        const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'qr_code'];
+        const formats = desired.filter(f => supported.includes(f));
+        if (formats.length > 0) detector = new BarcodeDetector({ formats });
+      } catch(e) {}
 
-      const offCanvas = document.createElement('canvas');
-      const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+      if (!detector) return;
+
       let isDetecting = false;
-      let frameCount = 0;
-
       modalNativeStreamInterval = setInterval(async () => {
         if (isDetecting || !videoEl || videoEl.paused || videoEl.ended || videoEl.readyState < 2) return;
         isDetecting = true;
-        frameCount++;
-
         try {
-          if (detector) {
-            try {
-              const results = await detector.detect(videoEl);
-              if (results && results.length > 0 && results[0].rawValue) {
-                onBarcodeDecoded(results[0].rawValue);
-                isDetecting = false;
-                return;
-              }
-            } catch(e) {}
-          }
-
-          const vw = videoEl.videoWidth || 640;
-          const vh = videoEl.videoHeight || 480;
-          if (vw > 0 && vh > 0) {
-            const cw = Math.floor(vw * 0.90);
-            const ch = Math.floor(vh * 0.60);
-            const cx = Math.floor((vw - cw) / 2);
-            const cy = Math.floor((vh - ch) / 2);
-
-            offCanvas.width = cw;
-            offCanvas.height = ch;
-            offCtx.drawImage(videoEl, cx, cy, cw, ch, 0, 0, cw, ch);
-
-            if (detector) {
-              try {
-                const results = await detector.detect(offCanvas);
-                if (results && results.length > 0 && results[0].rawValue) {
-                  onBarcodeDecoded(results[0].rawValue);
-                  isDetecting = false;
-                  return;
-                }
-              } catch(e) {}
-            }
-
-            if (typeof Quagga !== 'undefined' && Quagga.decodeSingle && (frameCount % 2 === 0)) {
-              try {
-                const dataUrl = offCanvas.toDataURL('image/jpeg', 0.85);
-                const qRes = await Quagga.decodeSingle({
-                  src: dataUrl,
-                  numOfWorkers: 0,
-                  inputStream: { size: Math.max(cw, 800) },
-                  decoder: {
-                    readers: ['ean_reader', 'code_128_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_39_reader']
-                  },
-                  locate: true
-                });
-                if (qRes && qRes.codeResult && qRes.codeResult.code) {
-                  onBarcodeDecoded(qRes.codeResult.code);
-                  isDetecting = false;
-                  return;
-                }
-              } catch(e) {}
+          const results = await detector.detect(videoEl);
+          if (results && results.length > 0 && results[0].rawValue) {
+            const valid = cleanAndValidateBarcode(results[0].rawValue);
+            if (valid) {
+              onBarcodeDecoded(valid);
             }
           }
         } catch(e) {
         } finally {
           isDetecting = false;
         }
-      }, 90);
+      }, 150);
     }
 
     async function closeMobileCameraScanner() {
@@ -2489,12 +2484,11 @@
       const nextCamId = cameraDevices[currentCameraIndex].id;
       
       const qrConfig = {
-        fps: 12,
+        fps: 15,
         qrbox: function(viewfinderWidth, viewfinderHeight) {
-          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const boxW = Math.max(180, Math.min(Math.floor(minEdge * 0.8), 280));
-          const boxH = Math.max(130, Math.min(Math.floor(boxW * 0.72), 200));
-          return { width: boxW, height: boxH };
+          const boxW = Math.min(Math.floor(viewfinderWidth * 0.88), 340);
+          const boxH = Math.min(Math.floor(boxW * 0.52), 170);
+          return { width: Math.max(boxW, 260), height: Math.max(boxH, 130) };
         }
       };
 
@@ -2515,8 +2509,6 @@
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.EAN_8,
             Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_39,
             Html5QrcodeSupportedFormats.QR_CODE
           ],
           verbose: false
@@ -2552,12 +2544,21 @@
     }
 
     function onBarcodeDecoded(decodedText, decodedResult) {
-      const now = Date.now();
-      // Debounce: prevent duplicate scan within 1.5s for the same code
-      if (decodedText === lastScannedCode && (now - lastScannedTime) < 1500) {
+      if (!decodedText) return;
+      const validCode = cleanAndValidateBarcode(decodedText);
+      if (!validCode) return;
+
+      if (typeof window.onBarcodeDecoded === 'function' && window.onBarcodeDecoded !== onBarcodeDecoded) {
+        window.onBarcodeDecoded(validCode);
         return;
       }
-      lastScannedCode = decodedText;
+
+      const now = Date.now();
+      // Debounce: prevent duplicate scan within 1.5s for the same code
+      if (validCode === lastScannedCode && (now - lastScannedTime) < 1500) {
+        return;
+      }
+      lastScannedCode = validCode;
       lastScannedTime = now;
 
       // Haptic vibration feedback on mobile phone
@@ -2567,13 +2568,13 @@
 
       // Always display barcode in the input box!
       const barcodeInput = document.getElementById('barcode-input');
-      if (barcodeInput) barcodeInput.value = decodedText;
+      if (barcodeInput) barcodeInput.value = validCode;
 
       // Process barcode
-      const result = processBarcode(decodedText, true);
+      const result = processBarcode(validCode, true);
 
       // Show on-screen feedback toast in the scanner viewport
-      showScanFeedbackToast(result.success ? `✅ ຍິງສຳເລັດ: ${result.itemName} (+1)` : `⚠️ ບາໂຄ້ດ: ${decodedText} (ບໍ່ມີໃນລະບົບ)`);
+      showScanFeedbackToast(result.success ? `✅ ຍິງສຳເລັດ: ${result.itemName} (+1)` : `⚠️ ບາໂຄ້ດ: ${validCode} (ບໍ່ມີໃນລະບົບ)`);
 
       const isContinuous = document.getElementById('continuous-scan-toggle').checked;
       if (!isContinuous && result.success) {
@@ -3854,6 +3855,12 @@
     function handleRemoteBarcodeFromMobile(rawCode, targetMode = 'POS') {
       if (!rawCode) return;
       rawCode = String(rawCode).trim();
+      const validCode = cleanAndValidateBarcode(rawCode);
+      if (!validCode) {
+        console.warn('Ignoring invalid barcode from remote mobile:', rawCode);
+        return;
+      }
+      rawCode = validCode;
 
       // 1. RESTOCK Mode from Mobile
       if (targetMode === 'RESTOCK') {
@@ -4097,6 +4104,11 @@
 
       const qrConfig = {
         fps: 15,
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          const boxW = Math.min(Math.floor(viewfinderWidth * 0.88), 340);
+          const boxH = Math.min(Math.floor(boxW * 0.52), 170);
+          return { width: Math.max(boxW, 260), height: Math.max(boxH, 130) };
+        },
         videoConstraints: {
           facingMode: primaryFacing,
           width: { ideal: 1280 },
@@ -4124,8 +4136,6 @@
               Html5QrcodeSupportedFormats.CODE_128,
               Html5QrcodeSupportedFormats.EAN_8,
               Html5QrcodeSupportedFormats.UPC_A,
-              Html5QrcodeSupportedFormats.UPC_E,
-              Html5QrcodeSupportedFormats.CODE_39,
               Html5QrcodeSupportedFormats.QR_CODE
             ],
             verbose: false
@@ -4161,157 +4171,61 @@
         liveNativeStreamInterval = null;
       }
 
+      if (!('BarcodeDetector' in window)) {
+        // iOS Safari: Html5Qrcode ZXing engine handles video stream natively with checksums
+        return;
+      }
+
       const videoEl = document.querySelector('#wireless-camera-reader video');
       if (!videoEl) {
         setTimeout(attachLiveStreamDetector, 300);
         return;
       }
 
-      // Initialize BarcodeDetector (Native on Android Chrome, ZBar WASM polyfill on iOS Safari)
       let detector = null;
-      if (typeof window !== 'undefined') {
-        if ((!('BarcodeDetector' in window) || !window.BarcodeDetector) && typeof barcodeDetectorPolyfill !== 'undefined' && barcodeDetectorPolyfill.BarcodeDetectorPolyfill) {
-          window.BarcodeDetector = barcodeDetectorPolyfill.BarcodeDetectorPolyfill;
+      try {
+        const supported = await BarcodeDetector.getSupportedFormats();
+        const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'qr_code'];
+        const formats = desired.filter(f => supported.includes(f));
+        if (formats.length > 0) {
+          detector = new BarcodeDetector({ formats });
         }
-
-        if ('BarcodeDetector' in window) {
-          try {
-            const supported = await BarcodeDetector.getSupportedFormats();
-            const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code'];
-            const formats = desired.filter(f => supported.includes(f));
-            if (formats.length > 0) {
-              detector = new BarcodeDetector({ formats });
-              console.log('⚡ BarcodeDetector active with formats:', formats);
-            }
-          } catch (e) {
-            console.warn('BarcodeDetector init error:', e);
-          }
-        }
+      } catch (e) {
+        console.warn('BarcodeDetector init error:', e);
       }
 
-      const offCanvas = document.createElement('canvas');
-      const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
-      let isDetecting = false;
-      let frameCount = 0;
+      if (!detector) return;
 
+      let isDetecting = false;
       liveNativeStreamInterval = setInterval(async () => {
         if (isDetecting || !videoEl || videoEl.paused || videoEl.ended || videoEl.readyState < 2) return;
         isDetecting = true;
-        frameCount++;
 
         try {
-          // Late initialization if polyfill finished loading in background
-          if (!detector && 'BarcodeDetector' in window) {
-            try {
-              const supported = await BarcodeDetector.getSupportedFormats();
-              const desired = ['ean_13', 'code_128', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'qr_code'];
-              const formats = desired.filter(f => supported.includes(f));
-              if (formats.length > 0) detector = new BarcodeDetector({ formats });
-            } catch(e) {}
-          }
-
-          // Engine 1: BarcodeDetector direct video stream scan (ML Kit on Android / ZBar WASM on iOS)
-          if (detector) {
-            try {
-              const results = await detector.detect(videoEl);
-              if (results && results.length > 0 && results[0].rawValue) {
-                onMobileWirelessBarcodeScanned(results[0].rawValue);
-                isDetecting = false;
-                return;
-              }
-            } catch (err) {}
-          }
-
-          // Engine 2: Sub-frame canvas scan (laser reticle central area)
-          const vw = videoEl.videoWidth || 640;
-          const vh = videoEl.videoHeight || 480;
-          if (vw > 0 && vh > 0) {
-            const cw = Math.floor(vw * 0.90);
-            const ch = Math.floor(vh * 0.55);
-            const cx = Math.floor((vw - cw) / 2);
-            const cy = Math.floor((vh - ch) / 2);
-
-            offCanvas.width = cw;
-            offCanvas.height = ch;
-            offCtx.drawImage(videoEl, cx, cy, cw, ch, 0, 0, cw, ch);
-
-            if (detector) {
-              try {
-                const results = await detector.detect(offCanvas);
-                if (results && results.length > 0 && results[0].rawValue) {
-                  onMobileWirelessBarcodeScanned(results[0].rawValue);
-                  isDetecting = false;
-                  return;
-                }
-              } catch (e) {}
-            }
-
-            // Engine 3: Quagga2 High-Precision 1D Barcode Engine (every 2nd frame)
-            if (typeof Quagga !== 'undefined' && Quagga.decodeSingle && (frameCount % 2 === 0)) {
-              try {
-                const dataUrl = offCanvas.toDataURL('image/jpeg', 0.85);
-                const qRes = await Quagga.decodeSingle({
-                  src: dataUrl,
-                  numOfWorkers: 0,
-                  inputStream: { size: Math.max(cw, 800) },
-                  decoder: {
-                    readers: [
-                      'ean_reader',
-                      'code_128_reader',
-                      'ean_8_reader',
-                      'upc_reader',
-                      'upc_e_reader',
-                      'code_39_reader'
-                    ]
-                  },
-                  locate: true
-                });
-                if (qRes && qRes.codeResult && qRes.codeResult.code) {
-                  onMobileWirelessBarcodeScanned(qRes.codeResult.code);
-                  isDetecting = false;
-                  return;
-                }
-              } catch (qErr) {}
-            }
-
-            // Engine 4: High-contrast binarization (for reflective metal cans & dark backgrounds)
-            if (frameCount % 3 === 0 && detector) {
-              try {
-                const imgData = offCtx.getImageData(0, 0, cw, ch);
-                const d = imgData.data;
-                for (let i = 0; i < d.length; i += 4) {
-                  const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114);
-                  const v = g > 130 ? 255 : (g < 80 ? 0 : g);
-                  d[i] = v; d[i+1] = v; d[i+2] = v;
-                }
-                offCtx.putImageData(imgData, 0, 0);
-
-                const contrastResults = await detector.detect(offCanvas);
-                if (contrastResults && contrastResults.length > 0 && contrastResults[0].rawValue) {
-                  onMobileWirelessBarcodeScanned(contrastResults[0].rawValue);
-                  isDetecting = false;
-                  return;
-                }
-              } catch (cErr) {}
+          const results = await detector.detect(videoEl);
+          if (results && results.length > 0 && results[0].rawValue) {
+            const valid = cleanAndValidateBarcode(results[0].rawValue);
+            if (valid) {
+              onMobileWirelessBarcodeScanned(valid);
             }
           }
         } catch (err) {
-          // ignore transient frame detection errors
         } finally {
           isDetecting = false;
         }
-      }, 80);
+      }, 150);
     }
 
     function onMobileWirelessBarcodeScanned(rawCode) {
       if (!rawCode) return;
-      rawCode = String(rawCode).trim();
+      const validCode = cleanAndValidateBarcode(rawCode);
+      if (!validCode) return;
 
       const now = Date.now();
-      if (rawCode === lastScannedBarcode && (now - lastScannedTimestamp) < 1200) {
+      if (validCode === lastScannedBarcode && (now - lastScannedTimestamp) < 1200) {
         return;
       }
-      lastScannedBarcode = rawCode;
+      lastScannedBarcode = validCode;
       lastScannedTimestamp = now;
 
       // Laser & Screen Flash feedback
@@ -4332,7 +4246,7 @@
         try {
           const msg = new Paho.MQTT.Message(JSON.stringify({
             type: 'barcode',
-            barcode: rawCode,
+            barcode: validCode,
             targetMode: currentScannerTargetMode
           }));
           msg.destinationName = `nnpos/v1/${mobilePairCode}/scan`;
@@ -4342,13 +4256,13 @@
           const badge = document.getElementById('wireless-scan-count-badge');
           if (badge) badge.innerText = `${mobileScannedCount} ລາຍການ`;
           const codeEl = document.getElementById('wireless-last-scanned-code');
-          if (codeEl) codeEl.innerText = `${rawCode} (ຍິງສົ່ງແລ້ວ...)`;
+          if (codeEl) codeEl.innerText = `${validCode} (ຍິງສົ່ງແລ້ວ...)`;
         } catch (e) {
           console.error('Error sending MQTT message:', e);
         }
       } else {
         const codeEl = document.getElementById('wireless-last-scanned-code');
-        if (codeEl) codeEl.innerHTML = `<span class="text-amber-400 font-bold">${rawCode} (ກຳລັງເຊື່ອມຕໍ່ PC...)</span>`;
+        if (codeEl) codeEl.innerHTML = `<span class="text-amber-400 font-bold">${validCode} (ກຳລັງເຊື່ອມຕໍ່ PC...)</span>`;
         playBeep('error');
         connectMobileToMQTT(mobilePairCode, false);
       }
