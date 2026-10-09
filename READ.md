@@ -1,50 +1,135 @@
-# 🛒 ລະບົບ POS & Inventory ຮ້ານຂາຍເຄື່ອງຍ່ອຍ (Google Apps Script + Google Sheets)
+# 🛒 ລະບົບ POS & Inventory ຮ້ານຂາຍເຄື່ອງຍ່ອຍ (NN POS System)
 
-ລະບົບຂາຍໜ້າຮ້ານ (POS) ແລະ ບໍລິຫານສາງສິນຄ້າ (Inventory Management) ສຳລັບຮ້ານຂາຍເຄື່ອງຍ່ອຍ ທີ່ເຮັດວຽກຢູ່ເທິງ **Google Apps Script** ແລະ ເກັບຂໍ້ມູນລົງໃນ **Google Sheets** 100% ໂດຍໃຊ້ພຽງ **2 ໄຟລ໌ຫຼັກ (`Code.gs` ແລະ `index.html`)** ບໍ່ຕ້ອງຕິດຕັ້ງໂປຣແກຣມເພີ່ມ ແລະ ບໍ່ມີຄ່າເຊົ່າ Server.
+ລະບົບຂາຍໜ້າຮ້ານ (POS) ແລະ ບໍລິຫານສາງສິນຄ້າ (Inventory Management) ສຳລັບຮ້ານຂາຍເຄື່ອງຍ່ອຍ ທີ່ເຮັດວຽກຢູ່ເທິງ **Google Apps Script** ແລະ ເກັບຂໍ້ມູນລົງໃນ **Google Sheets** 100% ໂດຍໃຊ້ພຽງ **2 ໄຟລ໌ຫຼັກ (`Code.gs` ແລະ `index.html`)** ບໍ່ຕ້ອງຕິດຕັ້ງໂປຣແກຣມເພີ່ມ, ບໍ່ມີຄ່າເຊົ່າ Server, ແລະ ຮອງຮັບການໃຊ້ງານແບບ **Dual-Device (PC + ມືຖືຍິງບາໂຄ້ດໄຮ້ສາຍ)** ຢ່າງສົມບູນແບບ.
 
 ---
 
-## 🛠️ 1. ເທັກໂນໂລຢີທີ່ນຳໃຊ້ (Tech Stack)
+## 🌟 ຈຸດເດັ່ນຂອງລະບົບ (System Highlights)
 
-### 💻 Frontend & UI (ໜ້າຈໍຂາຍໜ້າຮ້ານ)
-* **Frontend:** **HTML5, Vanilla JavaScript** — ຈັດການກະຕ່າສິນຄ້າໃນ Memory Array, ຄົ້ນຫາບາໂຄ້ດທັນທີ (< 10ms), ຖອດລະຫັດບາໂຄ້ດຊິງຊັ່ງດິຈິຕອນ 13 ຫຼັກ, ແລະ ຄິດໄລ່ເງິນທອນແບບ Real-time.
-* **Styling & UI:** **Tailwind CSS (via CDN), SweetAlert2** (ສຳລັບ Popup ແຈ້ງເຕືອນ, ສະຖານະ Loading, ຢືນຢັນການຊຳລະເງິນ, ແລະ ຟອມຮັບສິນຄ້າເຂົ້າສາງ) ພ້ອມຮອງຮັບການພິມໃບບິນຄວາມຮ້ອນ 80mm (`@media print`).
+* **🖥️ + 📱 ລະບົບ 2 ອຸປະກອນ (Dual Device Workflow):** ໃຊ້ PC ເປັນຈໍຂາຍ POS ໜ້າຮ້ານ ແລະ ໃຊ້ມືຖື (iPhone/Android) ເປັນ **ເຄື່ອງຍິງບາໂຄ້ດໄຮ້ສາຍ (Wireless Barcode Gun)** ໂດຍບໍ່ຕ້ອງຊື້ເຄື່ອງຍິງບາໂຄ້ດແຍກ.
+* **⚡ ເຊື່ອມຕໍ່ Real-time ຂ້າມເຄືອຂ່າຍ (Paho MQTT WebSockets):** PC ແລະ ມືຖືເຊື່ອມຕໍ່ຫາກັນຜ່ານ Cloud Broker ບໍ່ຈຳເປັນຕ້ອງຢູ່ Wi-Fi ດຽວກັນ (ມືຖືໃຊ້ 4G/5G ກໍ່ຍິງເຂົ້າ PC ໄດ້ທັນທີ).
+* **🎯 ສະແກນບາໂຄ້ດແມ່ນຍຳ 100% (Modulo-10 Checksum Algorithm):** ຖອດລະຫັດບາໂຄ້ດ EAN-13 (ເຊັ່ນ ໄທ `885...`, ສາກົນ), UPC-A, EAN-8, Code-128 ພ້ອມກວດສອບເລກ Checksum ປ້ອງກັນການອ່ານຜິດພາດເທິງ iPhone ແລະ ວັດຖຸໂຄ້ງ (ກະປ໋ອງ/ຂວດ).
+* **🔄 FEFO Inventory Management (First-Expired, First-Out):** ຕັດສະຕ໋ອກລ໊ອດທີ່ໝົດອາຍຸກ່ອນສະເໝີ ພ້ອມບັນທຶກຕົ້ນທຶນແທ້ຈິງຂອງແຕ່ລະລ໊ອດ.
+* **📦 Multi-UOM (ຮອງຮັບຫຼາຍໜ່ວຍນັບ):** 1 ສິນຄ້າ ຂາຍໄດ້ຫຼາຍໜ່ວຍ (ອັນ, ແພັກ, ແກັດ, ແກ້ວ, ຖົງ...) ພ້ອມຕັດສະຕ໋ອກເຂົ້າໜ່ວຍຍ່ອຍສຸດ (`base_uom`) ອັດຕະໂນມັດ.
+* **⚖️ Digital Scale Barcode Decoder:** ຖອດລະຫັດບາໂຄ້ດຊິງຊັ່ງດິຈິຕອນ 13 ຫຼັກ (Prefix `20`, `21`...) ເປັນລະຫັດສິນຄ້າ (PLU) ແລະ ນ້ຳໜັກກິໂລກຣາມອັດຕະໂນມັດ.
+* **👥 Role-Based Access Control (RBAC):** ຮອງຮັບ 3 ລະດັບສິດ (`Super Admin`, `Admin`, `Cashier`) ພ້ອມລະບົບກົດປຸ່ມ PIN 4 ຫຼັກວ່ອງໄວ.
+* **🌐 Hybrid Hosting Architecture:** ໃຊ້ງານໄດ້ທັງຜ່ານ Google Apps Script Web App ໂດຍກົງ ແລະ ຜ່ານ Static Web App ເທິງ **GitHub Pages** ([https://alounnasit.github.io/nn-pos/](https://alounnasit.github.io/nn-pos/)).
+
+---
+
+## 🛠️ 1. ເທັກໂນໂລຢີທີ່ນຳໃຊ້ (Tech Stack & Architecture)
+
+### 💻 Frontend (ໜ້າຈໍຂາຍ ແລະ ເຄື່ອງຍິງບາໂຄ້ດມືຖື)
+* **Core:** HTML5, Modern Vanilla JavaScript (ES6+), Web Audio API (ສຽງ Beep ສັງເຄາະບໍ່ຕ້ອງໂຫຼດໄຟລ໌ສຽງ).
+* **Styling & UI:** Tailwind CSS (via CDN), FontAwesome 6 Icons, SweetAlert2 (Popup ແຈ້ງເຕືອນ, ສະຖານະ, ແລະ ຟອມຢືນຢັນ).
+* **Barcode Scanning Engine:** `Html5Qrcode` (ZXing core engine) ປັບແຕ່ງກອບສະແກນສີ່ແຈຜືນຜ້າ (Rectangular 2:1 Viewport) ຮ່ວມກັບສູດຄິດໄລ່ກວດສອບ Checksum Modulo-10 ທາງຄະນິດສາດ.
+* **Real-time IoT Protocol:** `Paho MQTT WebSocket` (`broker.hivemq.com` WSS) ສຳລັບສົ່ງລະຫັດບາໂຄ້ດຈາກມືຖືຫາ PC ແບບ Sub-second (< 150ms).
+* **Receipt Output:** Thermal Print Engine ຈັດ Format ຂະໜາດ 80mm (`@media print`) ຮອງຮັບພາສາລາວ 100%.
 
 ### ⚙️ Backend & Database (ລະບົບຫຼັງບ້ານ ແລະ ຖານຂໍ້ມູນ)
 * **Backend Runtime:** **Google Apps Script (V8 Engine)**
-  * `HtmlService` — ສະແດງຜົນໜ້າຈໍ POS (`index.html`) ຜ່ານ Web App ຫຼື Modal Dialog ໃນ Google Sheets.
-  * `google.script.run` — ຮັບ-ສົ່ງຂໍ້ມູນລະຫວ່າງໜ້າເວັບ (`index.html`) ກັບຫຼັງບ້ານ (`Code.gs`).
-  * `LockService` — ລ໊ອກຄິວການຕັດສະຕ໋ອກເທື່ອລະບິນ ປ້ອງກັນບັນຫາຂໍ້ມູນຊ້ອນກັນ (Race Condition).
+  * `doGet(e)` & `doPost(e)` — ໃຫ້ບໍລິການທັງ Web App HTML ແລະ REST API (JSON) ສຳລັບເຊື່ອມຕໍ່ກັບ GitHub Pages.
+  * `LockService` — ລ໊ອກຄິວການຕັດສະຕ໋ອກເທື່ອລະບິນ ປ້ອງກັນຂໍ້ມູນຊ້ອນກັນ (Concurrency / Race Condition).
   * `PropertiesService` — ເກັບເລກບິນລ່າສຸດ (`LAST_RECEIPT_NO`) ເພື່ອລັນເລກບິນອັດຕະໂນມັດ (`INV-00001`).
-* **Database:** **Google Sheets (`SpreadsheetApp`)** — ເກັບຂໍ້ມູນສິນຄ້າ, ບາໂຄ້ດຫຼາຍໜ່ວຍນັບ, ສະຕ໋ອກແຍກຕາມວັນໝົດອາຍຸ (FEFO), ແລະ ປະຫວັດການຂາຍ.
+* **Database:** **Google Sheets (`SpreadsheetApp`)** — ເກັບຂໍ້ມູນທັງໝົດໃນ 5 Tabs ຫຼັກ.
 
 ---
 
-## 📁 2. ໂຄງສ້າງໄຟລ໌ໃນ Apps Script Editor
+## ✨ 2. ລາຍລະອຽດຟີເຈີທັງໝົດ (Comprehensive Features)
 
-ຢູ່ໃນເມນູ **Extensions > Apps Script** ຂອງ Google Sheets ຈະໃຊ້ພຽງ **2 ໄຟລ໌** ເທົ່ານັ້ນ:
-
-```text
-📦 Grocery_POS_System (Apps Script Editor)
- ├── 📜 Code.gs        # ໄຟລ໌ຫຼັກ (ມີມາໃຫ້ແລ້ວ): ລວມຟັງຊັນສ້າງຕາຕະລາງ Sheet, ດຶງສິນຄ້າ, ບັນທຶກບິນ, ແລະ ຕັດສະຕ໋ອກ FEFO
- └── 🌐 index.html     # ໄຟລ໌ໜ້າຈໍ (ກົດ + > HTML): ລວມ HTML5 + Tailwind CDN + SweetAlert2 CDN + Vanilla JS
-```
-
----
-
-## ✨ 3. ຟີເຈີຫຼັກຂອງລະບົບ (Core Features)
-
-1. **Auto Database Setup (`setupDatabaseSheets`):** ລັນຄຳສັ່ງດຽວ ລະບົບສ້າງ Tabs ທັງ 5 ພ້ອມຈັດ Format Text (`@`) ສຳລັບບາໂຄ້ດ ແລະ ໃສ່ຂໍ້ມູນຕົວຢ່າງໃຫ້ອັດຕະໂນມັດ.
-2. **Multi-UOM (ຮອງຮັບຫຼາຍໜ່ວຍນັບ):** ຜູກບາໂຄ້ດ "ອັນ/ກະປ໋ອງ", "ແພັກ", ແລະ "ແກັດ" ເຂົ້າກັບສິນຄ້າໂຕດຽວກັນ ແລະ ຕັດສະຕ໋ອກລວມເປັນໜ່ວຍຍ່ອຍສຸດ (`base_uom`) ອັດຕະໂນມັດ.
-3. **FEFO Inventory Deduction (ໝົດອາຍຸກ່ອນ ອອກກ່ອນ):** ເວລາຂາຍສິນຄ້າ ລະບົບຈະຄົ້ນຫາລ໊ອດ (`Inventory_Batches`) ທີ່ມີວັນໝົດອາຍຸໃກ້ທີ່ສຸດມາຕັດສະຕ໋ອກກ່ອນສະເໝີ ພ້ອມຄິດໄລ່ຕົ້ນທຶນແທ້ຈິງ.
-4. **Weighing Scale Barcode (ບາໂຄ້ດຊິງຊັ່ງດິຈິຕອນ):** ຮອງຮັບບາໂຄ້ດ 13 ຫຼັກຈາກຊິງຊັ່ງ (ຂຶ້ນຕົ້ນດ້ວຍ `20`) ໂດຍຖອດລະຫັດ `plu_code` 5 ຫຼັກ ແລະ ນ້ຳໜັກກິໂລກຣາມອັດຕະໂນມັດ.
-5. **80mm Thermal Receipt Printing:** ຈັດໜ້າໃບບິນຂະໜາດ 80mm ພ້ອມສັ່ງພິມທັນທີຫຼັງກົດຊຳລະເງິນ.
+### 2.1 👥 ລະບົບເຂົ້າສູ່ລະບົບ ແລະ ຈັດການສິດ (Authentication & Security)
+* **3 ລະດັບສິດ:**
+  * **Super Admin (ເຈົ້າຂອງຮ້ານ):** ເຂົ້າເຖິງໄດ້ທຸກຟັງຊັນ (ຂາຍ, ຮັບສິນຄ້າ, ເບິ່ງລາຍງານ, ຕັ້ງຄ່າ, ລຶບລ້າງຂໍ້ມູນ).
+  * **Admin (ຜູ້ຈັດການ):** ຂາຍ, ຮັບສິນຄ້າເຂົ້າສາງ, ເບິ່ງລາຍງານຍອດຂາຍປະຈຳວັນ, ກວດສອບສິນຄ້າໃກ້ໝົດສະຕ໋ອກ.
+  * **Cashier (ພະນັກງານຂາຍ):** ມີສິດສະເພາະໜ້າຈໍຂາຍ POS ເທົ່ານັ້ນ (ບໍ່ສາມາດເປີດໜ້າຮັບສິນຄ້າ ຫຼື ລຶບຂໍ້ມູນໄດ້).
+* **2 ຮູບແບບການ Login:**
+  * **Password Tab:** ປ້ອນ Username + Password ປົກກະຕິ.
+  * **Fast PIN Tab:** ໜ້າຈໍ Numpad ກົດປຸ່ມ PIN 4 ຫຼັກ ເໝາະສຳລັບປ່ຽນກະຂາຍໜ້າຮ້ານຢ່າງວ່ອງໄວ.
+* **Session Persistence:** ຮອງຮັບຕົວເລືອກ "ຈື່ການເຂົ້າສູ່ລະບົບ (Remember Me)" ຜ່ານ `localStorage`.
+* **Mobile Gun Scanner Bypass:** ເມື່ອເປີດໜ້າຈໍໃນໂໝດເຄື່ອງຍິງບາໂຄ້ດມືຖື ລະບົບຈະຂ້າມໜ້າ Login ໄປຫາໜ້າຈໍກ້ອງຍິງທັນທີ ເພື່ອຄວາມສະດວກໃນການເຮັດວຽກ.
 
 ---
 
-## 🗄️ 4. ໂຄງສ້າງຕາຕະລາງໃນ Google Sheets (5 Tabs)
+### 2.2 📱 ລະບົບເຄື່ອງຍິງບາໂຄ້ດໄຮ້ສາຍ (Wireless Barcode Scanner Gun)
+* **ການຈັບຄູ່ອຸປະກອນ (Pairing):**
+  1. ເທິງ PC ກົດປຸ່ມ **"📱 ເຊື່ອມຕໍ່ມືຖືຍິງບາໂຄ້ດ"** ຈະສະແດງ QR Code ພ້ອມເລກ Pair Code 6 ຫຼັກ.
+  2. ໃຊ້ມືຖືສະແກນ QR Code ເພື່ອເປີດໜ້າຈໍເຄື່ອງຍິງບາໂຄ້ດທັນທີ.
+* **ສະຫຼັບໂໝດຍິງບາໂຄ້ດ (Target Mode Switcher):**
+  * **`🛒 ໂໝດຂາຍ (POS Mode)`:** ເມື່ອຍິງບາໂຄ້ດ, ຂໍ້ມູນຈະຖືກສົ່ງໄປເພີ່ມໃສ່ກະຕ່າຂາຍເທິງ PC ທັນທີ.
+  * **`📦 ໂໝດຮັບສິນຄ້າ (Restock Mode)`:** ເມື່ອຍິງບາໂຄ້ດ, ໜ້າຈໍ PC ຈະເປີດຟອມ "ຮັບສິນຄ້າເຂົ້າສາງ" ພ້ອມດຶງຂໍ້ມູນສິນຄ້າຂຶ້ນມາໃຫ້ອັດຕະໂນມັດ.
+* **ໂຕຊ່ວຍ ແລະ ສັນຍານຕອບຮັບ (Feedback & UX):**
+  * Laser Line Animation ເຄື່ອນໄຫວເທິງໜ້າຈໍກ້ອງ.
+  * Screen Flash ສີຂຽວກະພິບທັນທີເມື່ອອ່ານບາໂຄ້ດສຳເລັດ.
+  * ສຽງ Beep ສັງເຄາະ ແລະ Haptic Vibration ສັ່ນເຕືອນເທິງມືຖື.
+  * Bi-directional Feedback: PC ສົ່ງຊື່ສິນຄ້າ ແລະ ສະຖານະຕອບກັບມາສະແດງເທິງຈໍມືຖື.
+  * ປຸ່ມເປີດ/ປິດ ໄຟແຟລດ (Torch) ສຳລັບບ່ອນມືດ ແລະ ປຸ່ມສະຫຼັບກ້ອງໜ້າ/ຫຼັງ.
+  * ປຸ່ມພິມລະຫັດບາໂຄ້ດດ້ວຍມື (Manual Input Fallback) ກໍລະນີບາໂຄ້ດສິນຄ້າຈີກຂາດ.
 
-ເມື່ອລັນຟັງຊັນ `setupDatabaseSheets()` ລະບົບຈະສ້າງ 5 Tabs ດັ່ງນີ້ອັດຕະໂນມັດ:
+---
+
+### 2.3 📸 ລະບົບກ້ອງສະແກນບາໂຄ້ດເທິງຕົວເຄື່ອງ (Integrated Camera Scanner)
+* **ຮອງຮັບທຸກ Browser & Platform:** iPhone (Safari), Android (Chrome), iPad, Tablet, ແລະ PC Webcams.
+* **Modulo-10 Checksum Algorithm:** ກວດສອບຄວາມຖືກຕ້ອງທາງຄະນິດສາດຂອງເລກບາໂຄ້ດ 13 ຫຼັກ (`isValidEAN13`), 12 ຫຼັກ (`isValidUPCA`), ແລະ 8 ຫຼັກ (`isValidEAN8`) ປ້ອງກັນການອ່ານຂາດ ຫຼື ອ່ານຕົວເລກຜິດ 100%.
+* **Focused Rectangular Viewport:** ກອບສະແກນສີ່ແຈຜືນຜ້າ (2:1 Aspect Ratio) ທີ່ໂຟກັສເສັ້ນບາໂຄ້ດຂວາງຢ່າງແມ່ນຍຳ.
+* **Continuous Scanning Toggle:** ສະວິດເປີດ/ປິດ ການຍິງຕໍ່ເນື່ອງ (ຍິງສິນຄ້າຫຼາຍລາຍການຕິດໆກັນໂດຍບໍ່ຕ້ອງປິດກ້ອງ).
+* **Native Camera Capture Fallback:** ປຸ່ມຖ່າຍຮູບສະແກນສຳຮອງ ກໍລະນີ Browser ບລັອກ Live Video Stream ເທິງ Iframe ຫຼື ແສງສະທ້ອນຫຼາຍເກີນໄປ.
+
+---
+
+### 2.4 📦 ລະບົບຮັບສິນຄ້າເຂົ້າສາງ (Restock & Stock In Modal)
+* **ຟອມຮັບສິນຄ້າຄົບວົງຈອນ:**
+  * **ຊ່ອງບາໂຄ້ດ (Barcode):** ຮັບຄ່າຈາກການພິມ, ກ້ອງສະແກນ, ຫຼື ຍິງມາຈາກມືຖື. ຖ້າເປັນສິນຄ້າເກົ່າ ລະບົບຈະໂຫຼດຊື່, ໝວດໝູ່, ລາຄາຂາຍເກົ່າຂຶ້ນມາໃຫ້ນຳໃຊ້ທັນທີ.
+  * **ໝວດໝູ່ (Category):** ເລືອກຈາກລາຍການທີ່ມີຢູ່ ຫຼື ເລືອກ **`+ ສ້າງປະເພດໃໝ່`** ເພື່ອພິມໝວດໝູ່ໃໝ່ໄດ້ທັນທີໂດຍບໍ່ຕ້ອງໄປເປີດ Google Sheets.
+  * **ຊື່ສິນຄ້າ (Product Name):** ຮອງຮັບພາສາລາວ ແລະ ພາສາອັງກິດ.
+  * **ໜ່ວຍນັບ (Packaging Unit):** ເລືອກຮູບແບບການຂາຍ: ກະປ໋ອງ, ແກ້ວ, ຕຸກ, ແພັກ, ແກັດ, ຖົງ, ຊອງ, ກິໂລ, etc.
+  * **ອັດຕາແປງໜ່ວຍ (Conversion Qty):** ຈຳນວນໜ່ວຍຍ່ອຍຕໍ່ໜ່ວຍທີ່ຮັບ (ເຊັ່ນ: 1 ແພັກ = 6 ກະປ໋ອງ, 1 ແກັດ = 24 ກະປ໋ອງ).
+  * **ລາຄາຕົ້ນທຶນ (Cost Price) & ລາຄາຂາຍ (Selling Price):** ພ້ອມຄິດໄລ່ກຳໄລຄາດຄະເນ (Margin %) ໃຫ້ເຫັນ Real-time.
+  * **ຈຳນວນຮັບເຂົ້າ (Received Qty):** ຄິດໄລ່ຈຳນວນສະຕ໋ອກຍ່ອຍລວມ ແລະ ຕົ້ນທຶນລວມອັດຕະໂນມັດ.
+  * **ວັນໝົດອາຍຸ (Expiry Date):** ບັນທຶກລົງຕາຕະລາງ `Inventory_Batches` ເພື່ອໃຊ້ຕັດສະຕ໋ອກແບບ FEFO.
+
+---
+
+### 2.5 🛒 ໜ້າຈໍຂາຍໜ້າຮ້ານ (POS Checkout & Cart Management)
+* **Real-time Memory Cache Search (< 10ms):** ຄົ້ນຫາບາໂຄ້ດໃນ Memory ທັນທີທີ່ຍິງ ຫຼື ພິມ ໂດຍບໍ່ຕ້ອງລໍຖ້າ Request ໄປ Google Sheets ທຸກຄັ້ງ.
+* **Physical Barcode Scanner Support:** ຮອງຮັບເຄື່ອງຍິງບາໂຄ້ດ USB / Bluetooth ທົ່ວໄປ (Keyboard Emulation Event Listener).
+* **Visual Product Catalog:** Grid ສະແດງສິນຄ້າພ້ອມຮູບພາບ, ປຸ່ມກັ່ນຕອງແຍກຕາມໝວດໝູ່, ແລະ ຊ່ອງ Search ຊື່ສິນຄ້າ.
+* **Multi-UOM Cart Selector:** ສາມາດຄລິກປ່ຽນໜ່ວຍນັບຂອງສິນຄ້າໃນກະຕ່າໄດ້ທັນທີ (ເຊັ່ນ: ລູກຄ້າປ່ຽນໃຈຊື້ເປັນ "ແພັກ" ແທນ "ກະປ໋ອງ").
+* **ຊິງຊັ່ງດິຈິຕອນ (Weighable Products):** ຖອດລະຫັດບາໂຄ້ດ 13 ຫຼັກ (Prefix `20`, `21`...) ເປັນລະຫັດ PLU ແລະ ນ້ຳໜັກກິໂລກຣາມ ຄິດໄລ່ລາຄາລົງກະຕ່າອັດຕະໂນມັດ.
+* **Modal ຊຳລະເງິນ (Payment Methods):**
+  * **ເງິນສົດ (Cash):** ມີປຸ່ມກົດຈຳນວນເງິນດ່ວນ (`₭10,000`, `₭20,000`, `₭50,000`, `₭100,000`, `ພໍດີ`) ແລະ ຄິດໄລ່ເງິນທອນ Real-time.
+  * **ໂອນເງິນ / QR (Transfer):** ຮອງຮັບການສະແກນຜ່ານ BCEL One / LAO QR ພ້ອມຊ່ອງບັນທຶກເລກອ້າງອີງ.
+
+---
+
+### 2.6 🧾 ລະບົບພິມໃບບິນຄວາມຮ້ອນ 80mm (Thermal Receipt Printing)
+* ຈັດ Format ໃບບິນຕາມມາດຕະຖານເຄື່ອງພິມຄວາມຮ້ອນ 80mm.
+* ສະແດງຫົວບິນຊື່ຮ້ານ, ເບີໂທ, ເລກທີບິນ (`INV-XXXXX`), ວັນທີ/ເວລາ, ຊື່ແຄັດເຊຍ, ລາຍການສິນຄ້າ, ວິທີຊຳລະ, ເງິນຮັບ ແລະ ເງິນທອນ.
+* ສັ່ງພິມອັດຕະໂນມັດທັນທີຫຼັງກົດຊຳລະເງິນສຳເລັດ ຫຼື ກົດພິມຄືນໃໝ່ໄດ້.
+
+---
+
+### 2.7 🔄 ລະບົບຕັດສະຕ໋ອກ FEFO (First-Expired, First-Out)
+* ເວລາຂາຍສິນຄ້າ ລະບົບຈະຄົ້ນຫາລ໊ອດໃນ `Inventory_Batches` ທີ່ມີ **ວັນໝົດອາຍຸໃກ້ທີ່ສຸດ** ມາຕັດສະຕ໋ອກກ່ອນສະເໝີ.
+* ຖ້າລ໊ອດທຳອິດບໍ່ພໍ ລະບົບຈະຕັດລ໊ອດຕໍ່ໄປໂດຍອັດຕະໂນມັດ (Split-batch deduction).
+* ບັນທຶກຕົ້ນທຶນແທ້ຈິງຂອງແຕ່ລະລ໊ອດລົງໃນ `Sales_Details` ເພື່ອຄິດໄລ່ກຳໄລ-ຂາດທຶນແທ້ຈິງ (COGS).
+* ໃຊ້ `LockService` ລ໊ອກຄິວຕັດສະຕ໋ອກເທື່ອລະບິນ ປ້ອງກັນບັນຫາສະຕ໋ອກຕິດລົບ ຫຼື ຂໍ້ມູນຊ້ອນກັນ.
+
+---
+
+### 2.8 📊 ລາຍງານຍອດຂາຍ ແລະ ແຈ້ງເຕືອນສະຕ໋ອກ (Reports & Alerts)
+* **Daily Sales Summary Modal:**
+  * ຍອດຂາຍລວມປະຈຳວັນ (Total Revenue).
+  * ຕົ້ນທຶນສິນຄ້າລວມ (Total Cost) ແລະ ກຳໄລຄາດຄະເນ (Gross Profit).
+  * ຈຳນວນບິນທີ່ຂາຍໄດ້ທັງໝົດ.
+  * ສະຫຼຸບຍອດແຍກຕາມຊ່ອງທາງຊຳລະ (ເງິນສົດ vs ໂອນ).
+  * ລາຍການສິນຄ້າຂາຍດີທີ່ສຸດ (Top Selling Products).
+* **Low Stock Alert:** ແຈ້ງເຕືອນສິນຄ້າທີ່ສະຕ໋ອກເຫຼືອໜ້ອຍກວ່າເກນຂັ້ນຕ່ຳ (`min_stock`) ເພື່ອໃຫ້ສັ່ງຊື້ເພີ່ມທັນເວລາ.
+
+---
+
+## 🗄️ 3. ໂຄງສ້າງຕາຕະລາງໃນ Google Sheets (5 Tabs)
+
+ເມື່ອລັນຄຳສັ່ງ `setupDatabaseSheets()` ລະບົບຈະສ້າງ ແລະ ຈັດ Format ຕາຕະລາງທັງ 5 Tabs ດັ່ງນີ້:
 
 ### 1. `Products` (ຂໍ້ມູນສິນຄ້າຫຼັກ)
 | Col A (`product_id`) | Col B (`name_lo`) | Col C (`category`) | Col D (`base_uom`) | Col E (`is_weighable`) | Col F (`plu_code`) | Col G (`min_stock`) |
@@ -69,7 +154,7 @@
 ### 4. `Sales_Header` (ປະຫວັດຫົວບິນຂາຍ)
 | Col A (`receipt_no`) | Col B (`sale_datetime`) | Col C (`cashier`) | Col D (`total_lak`) | Col E (`payment_type`) | Col F (`received_lak`) | Col G (`change_lak`) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `INV-00001` | `2026-09-29 15:00:00` | ແຄັດເຊຍ 1 | `103000` | `CASH` | `105000` | `2000` |
+| `INV-00001` | `2026-10-05 15:00:00` | ແຄັດເຊຍ 1 | `103000` | `CASH` | `105000` | `2000` |
 
 ### 5. `Sales_Details` (ລາຍການສິນຄ້າຍ່ອຍໃນແຕ່ລະບິນ)
 | Col A (`receipt_no`) | Col B (`barcode`) | Col C (`product_id`) | Col D (`item_name`) | Col E (`qty_sold`) | Col F (`unit_price`) | Col G (`total_cost`) | Col H (`subtotal`) |
@@ -79,23 +164,50 @@
 
 ---
 
+## 👤 4. ບັນຊີຜູ້ໃຊ້ລະບົບເລີ່ມຕົ້ນ (Default User Accounts)
+
+| ລະດັບສິດ (Role) | ຊື່ຜູ້ໃຊ້ (Username) | ລະຫັດຜ່ານ (Password) | ລະຫັດ PIN (4 ຫຼັກ) | ສິດທິພິເສດ |
+| :--- | :--- | :--- | :--- | :--- |
+| **Super Admin** | `superadmin` | `superadmin123` | `9999` | ເຕັມສິດ (ຂາຍ, ຮັບສິນຄ້າ, ລາຍງານ, ຕັ້ງຄ່າ, ລຶບລ້າງຂໍ້ມູນ) |
+| **Admin** | `admin` | `admin123` | `8888` | ຂາຍ, ຮັບສິນຄ້າເຂົ້າສາງ, ເບິ່ງລາຍງານ |
+| **Cashier** | `cashier` | `cashier123` | `1234` | ຂາຍໜ້າຮ້ານຢ່າງດຽວ |
+
+---
+
 ## 🚀 5. ຂັ້ນຕອນການຕິດຕັ້ງ ແລະ ເປີດໃຊ້ງານ (Step-by-Step Setup)
 
 ### ຂັ້ນຕອນທີ 1: ວາງໂຄ້ດໃນ Apps Script
-1. ເປີດໄຟລ໌ **Google Sheets** ໃໝ່.
+1. ເປີດໄຟລ໌ **Google Sheets** ຂອງທ່ານ.
 2. ເຂົ້າໄປທີ່ເມນູ **Extensions (ສ່ວນຂະຫຍາຍ) > Apps Script**.
-3. ລຶບໂຄ້ດເກົ່າໃນໄຟລ໌ `Code.gs` ອອກ ແລ້ວວາງໂຄ້ດຝັ່ງ Backend ລົງໄປ.
-4. ກົດປຸ່ມ **➕ (Add a file) > HTML** ຕັ້ງຊື່ວ່າ **`index`** (ບໍ່ຕ້ອງພິມ `.html` ຊ້ຳ) ແລ້ວວາງໂຄ້ດຝັ່ງ Frontend ລົງໄປ ແລະ ກົດ **Save (💾)**.
+3. ວາງໂຄ້ດຈາກໄຟລ໌ `Code.gs` ລົງໃນໄຟລ໌ `Code.gs` ຂອງ Apps Script.
+4. ກົດປຸ່ມ **➕ (Add a file) > HTML** ຕັ້ງຊື່ວ່າ **`index`** ແລ້ວວາງໂຄ້ດຈາກໄຟລ໌ `index.html` ລົງໄປ ແລະ ກົດ **Save (💾)**.
 
 ### ຂັ້ນຕອນທີ 2: ສ້າງຕາຕະລາງຖານຂໍ້ມູນອັດຕະໂນມັດ
 1. ຢູ່ແຖບເຄື່ອງມືດ້ານເທິງຂອງ `Code.gs` ໃຫ້ເລືອກຟັງຊັນ **`setupDatabaseSheets`** ແລ້ວກົດປຸ່ມ **▷ Run**.
 2. ອະນຸຍາດສິດການເຂົ້າເຖິງ (Review Permissions > Advanced > Go to project).
-3. ກັບໄປເບິ່ງໜ້າ Google Sheets ຈະເຫັນ Tabs ທັງ 5 ຖືກສ້າງຂຶ້ນມາພ້ອມ Headers ແລະ Format ທີ່ພ້ອມໃຊ້ງານ (ເລີ່ມຕົ້ນສະອາດ 100% ບໍ່ມີຂໍ້ມູນຕົວຢ່າງ, ສາມາດຍິງບາໂຄ້ດຮັບສິນຄ້າຕົວຈິງເຂົ້າສາງໄດ້ທັນທີ).
-4. ຖ້າເຄີຍມີຂໍ້ມູນເກົ່າຄ້າງຢູ່, ສາມາດກົດເມນູ **🛒 ລະບົບຮ້ານຄ້າ (NN POS) > 6. 🧹 ລຶບຂໍ້ມູນສິນຄ້າຕົວຢ່າງທັງໝົດ** ເພື່ອລ້າງຂໍ້ມູນອອກໝົດໄດ້ທຸກເວລາ.
+3. Google Sheets ຈະສ້າງ Tabs ທັງ 5 ພ້ອມ Format Text (`@`) ໃຫ້ບາໂຄ້ດທັນທີ ໂດຍເລີ່ມຕົ້ນສະອາດ 100% ພ້ອມໃຫ້ຍິງຮັບສິນຄ້າຕົວຈິງ.
+4. *(ໝາຍເຫດ: ຖ້າຕ້ອງການລຶບຂໍ້ມູນເກົ່າຄ້າງຢູ່, ສາມາດກົດເມນູ **🛒 ລະບົບຮ້ານຄ້າ (NN POS) > 6. 🧹 ລຶບຂໍ້ມູນສິນຄ້າຕົວຢ່າງທັງໝົດ** ໄດ້ທຸກເວລາ).*
 
-### ຂັ້ນຕອນທີ 3: ເປີດໃຊ້ງານໜ້າຈໍ POS (Web App)
+### ຂັ້ນຕອນທີ 3: Deploy ເປັນ Web App
 1. ກົດປຸ່ມສີຟ້າ **Deploy > New deployment**.
 2. ກົດໄອຄອນຮູບຟັນເຟືອງ (⚙️) ເລືອກ **Web app**:
-   * **Execute as:** `Me`
-   * **Who has access:** `Anyone with Google Account` (ຫຼື `Anyone`)
-3. ກົດ **Deploy** ແລ້ວຄລິກລິ້ງ **Web App URL** ເພື່ອເປີດໜ້າຈໍຂາຍ POS ໃຊ້ງານໄດ້ທັນທີ! *(ຫຼື ເປີດຈາກເມນູ **🛒 ລະບົບຮ້ານຄ້າ (NN POS) > 1. ເປີດໜ້າຈໍຂາຍ POS** ຢູ່ເທິງໜ້າ Google Sheets ຫຼື ຜ່ານ GitHub Pages: https://alounnasit.github.io/nn-pos/).*
+   * **Execute as:** `Me` (ບັນຊີຂອງທ່ານ)
+   * **Who has access:** `Anyone` (ທຸກຄົນ)
+3. ກົດ **Deploy** ແລ້ວ copy ລິ້ງ **Web App URL**.
+
+### ຂັ້ນຕອນທີ 4: ເປີດໃຊ້ງານໜ້າຈໍ POS
+* **ວິທີທີ 1 (ຜ່ານ GitHub Pages):** ເປີດ [https://alounnasit.github.io/nn-pos/](https://alounnasit.github.io/nn-pos/) ຈາກນັ້ນກົດປຸ່ມ **⚙️ ຕັ້ງຄ່າ API** ຢູ່ມຸມລຸ່ມຂວາ ແລ້ວວາງລິ້ງ Web App URL ທີ່ copy ມາຈາກຂັ້ນຕອນທີ 3.
+* **ວິທີທີ 2 (ຜ່ານ Web App URL ໂດຍກົງ):** ຄລິກເປີດລິ້ງ Web App URL ທີ່ deploy ໄດ້ໂດຍກົງ.
+* **ວິທີທີ 3 (ເປີດພາຍໃນ Google Sheets):** ເປີດຈາກເມນູ **🛒 ລະບົບຮ້ານຄ້າ (NN POS) > 1. ເປີດໜ້າຈໍຂາຍ POS (Full Window)**.
+
+---
+
+## 📱 6. ຄູ່ມືການໃຊ້ງານມືຖືເປັນເຄື່ອງຍິງບາໂຄ້ດ (Mobile Gun Guide)
+
+1. ເປີດໜ້າຈໍ POS ເທິງ PC.
+2. ກົດປຸ່ມ **"📱 ເຊື່ອມຕໍ່ມືຖືຍິງບາໂຄ້ດ"** (ປຸ່ມສີມ່ວງດ້ານເທິງຂວາ).
+3. ເອົາມືຖື (iPhone ຫຼື Android) ມາສະແກນ QR Code ທີ່ປາກົດເທິງໜ້າຈໍ PC.
+4. ໜ້າຈໍມືຖືຈະເປີດກ້ອງພ້ອມເສັ້ນ Laser ຂຶ້ນມາທັນທີ:
+   * ກົດເລືອກ **`🛒 POS`** ຖ້າຕ້ອງການຍິງຂາຍສິນຄ້າລົງກະຕ່າ.
+   * ກົດເລືອກ **`📦 ຮັບສິນຄ້າ`** ຖ້າຕ້ອງການຍິງບາໂຄ້ດເພື່ອຮັບສິນຄ້າເຂົ້າສາງ.
+5. ເມື່ອຍິງບາໂຄ້ດສິນຄ້າ, ລະບົບຈະກວດສອບ Checksum Modulo-10 ໃຫ້ຖືກຕ້ອງ ແລະ ສົ່ງຂໍ້ມູນໄປສະແດງຜົນເທິງ PC ທັນທີພາຍໃນ < 150ms!
